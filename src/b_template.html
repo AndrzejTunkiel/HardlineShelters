@@ -96,6 +96,43 @@ td.spark{padding:2px 8px}
 .mresult{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;padding:10px 12px;border:2px solid var(--panel-lo);background:#1f192b}
 .mresult b{font-family:var(--f-label);font-size:22px}
 .mresult.pass b{color:var(--ok)}.mresult.fail b{color:var(--bad)}
+
+/* one-screen desktop layout */
+body{margin:0}
+@media (min-width:1051px){
+  html,body{height:100%}
+  .app{height:100%;box-sizing:border-box;padding-block:8px;gap:8px;max-width:none}
+  .bar{padding:6px 12px;gap:6px 16px}
+  .bar .stat strong{font-size:16px}
+  .main{flex:1;min-height:0;grid-template-columns:minmax(0,1fr) clamp(400px,26vw,500px);gap:8px;align-items:stretch}
+  .mapcard{min-height:0;padding:6px;gap:4px}
+  .mapscroll{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  #map{min-width:0;width:auto}
+  .side{min-height:0}
+  .sidebody{flex:1;min-height:0;overflow:auto;padding:10px;gap:8px}
+  .ticker{padding:4px 12px}
+  .maphint{font-size:13px}
+}
+.phead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.small{font-size:13px}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tile{background:#1f192b;border:2px solid var(--panel-lo);padding:5px 8px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.tile.warn{border-color:#8a6420}.tile.crit{border-color:var(--bad)}
+.tile .t{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.tile .v{font-family:var(--f-label);font-weight:600;font-size:17px;white-space:nowrap}
+.tile .v small{font-size:12px}
+.tile .d{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .meter{height:10px}
+.stack.mini{height:10px}
+.eq{display:grid;grid-template-columns:86px minmax(0,1fr) 36px auto;gap:4px 8px;align-items:center;font-size:13px}
+.eq .meter{height:10px}
+.tchips{display:flex;flex-wrap:wrap;gap:4px}
+.tchip{background:#1f192b;border:2px solid var(--panel-lo);padding:2px 8px;font-size:13px;cursor:pointer;color:var(--paper)}
+.tchip small{color:var(--muted)}
+.tchip.hurt{border-color:#8a6420}.tchip.cut,.tchip.col{border-color:var(--bad)}
+.tchip:hover{border-color:var(--amber)}
+details.more summary{cursor:pointer;font-size:13px;color:var(--muted)}
+details.more .ledger{margin-top:6px;font-size:13px}
 @media (max-width:760px){.designer{grid-template-columns:1fr}#xsec{width:100%}.floor{grid-template-columns:30px 70px 1fr 80px}.floor .bays{display:none}}
 </style>
 
