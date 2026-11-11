@@ -416,7 +416,7 @@ function drawTunnel(i,t){
   if(!cut)for(const k of ['W','A','P']){const fw=R['fw'+k],bw=R['bw'+k];if(!fw&&!bw)continue;const ph=reduced?0:(t*.018)%9;
     for(let d=ph;d<L;d+=9){if(fw){const u=d/L;F(ax+dx*u+nx*OFF[k]-1,ay+dy*u+ny*OFF[k]-1,2,2,COL[k]);}if(bw){const u=1-d/L;F(ax+dx*u+nx*OFF[k]-1,ay+dy*u+ny*OFF[k]-1,2,2,COL[k]);}}}
 }
-function drawChip(i,t){const l=S.links[i],[ax,ay,bx,by]=linkPts(i),x=(ax+bx)/2,y=(ay+by)/2,cut=!l.ok||l.hp<=0,hurt=!cut&&l.hp<100,R=UI.N._R[i];
+function drawChip(i,t){const l=S.links[i],[x,y]=UI.chips[i],cut=!l.ok||l.hp<=0,hurt=!cut&&l.hp<100,R=UI.N._R[i];
   const rep=ids().some(id=>st(id).repair?.link===linkName(l));
   F(x-14,y-8,28,16,cut?(rep?'#f2b33d':((t/500|0)%2&&!reduced?'#5a1d1a':'#ec4b3f')):hurt||UI.selLink===i?'#f2b33d':'#4a4060');F(x-13,y-7,26,14,'#1b1624');
   if(cut){txt(l.collapsed?'GONE':rep?'FIX':'CUT',x,y-4,rep?'#f2b33d':'#ec4b3f','center');return;}
@@ -426,6 +426,9 @@ function drawOps(t){
   blit(TER);F(0,0,640,360,'rgba(16,11,26,.6)');blit(ROADS,.45);
   for(const tw of WD.towns)txtS(tw.name,tw.x*4,tw.y*4+10,'#8a8099','center');
   for(let i=0;i<S.links.length;i++)drawTunnel(i,t);
+  UI.chips=placeOnSegments(S.links.map((l,i)=>linkPts(i)),ids().map(id=>{const [x0,y0]=cardPos(id);return [x0-2,y0-2,CW+6,CH+6];}),28,16);
+  UI.chips.forEach(([x,y],i)=>{const [ax,ay,bx,by]=linkPts(i),L=Math.hypot(bx-ax,by-ay)||1,u=clamp(((x-ax)*(bx-ax)+(y-ay)*(by-ay))/(L*L),0,1),px=ax+(bx-ax)*u,py=ay+(by-ay)*u;
+    if(Math.hypot(x-px,y-py)>9){lineThick(px,py,x,y,3,'#0f0b15');lineThick(px,py,x,y,1,'#8a8099');}});
   for(const id of ids())drawCard(id,t);
   for(let i=0;i<S.links.length;i++)drawChip(i,t);
   const d=UI.drag;if(d&&d.moved&&d.from){const s=st(d.from),ax=s.x*4+2,ay=s.y*4+2,L=Math.hypot(d.x-ax,d.y-ay),ph=reduced?0:(t*.03)%6;
@@ -433,7 +436,7 @@ function drawOps(t){
   txtS(war()?'SEALED':'VENTED - ON GRID',634,349,war()?((t/600|0)%2||reduced?'#ec4b3f':'#5a1d1a'):'#8a8099','right');
 }
 function opsNodeAt(x,y){for(const id of ids().slice().reverse()){const [x0,y0]=cardPos(id);if(x>=x0&&x<=x0+CW&&y>=y0&&y<=y0+CH)return id;}return null;}
-function opsLinkAt(x,y){let best=null,bd=7;S.links.forEach((l,i)=>{const [ax,ay,bx,by]=linkPts(i),dx=bx-ax,dy=by-ay,u=clamp(((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy),0,1),d=Math.hypot(ax+dx*u-x,ay+dy*u-y);if(d<bd){bd=d;best=i;}});return best;}
+function opsLinkAt(x,y){if(UI.chips)for(let i=0;i<UI.chips.length;i++){const [cx,cy]=UI.chips[i];if(Math.abs(x-cx)<=14&&Math.abs(y-cy)<=8)return i;}let best=null,bd=7;S.links.forEach((l,i)=>{const [ax,ay,bx,by]=linkPts(i),dx=bx-ax,dy=by-ay,u=clamp(((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy),0,1),d=Math.hypot(ax+dx*u-x,ay+dy*u-y);if(d<bd){bd=d;best=i;}});return best;}
 function opsDown(x,y){UI.drag={from:opsNodeAt(x,y),x,y,sx:x,sy:y,moved:false,over:null};}
 function opsMove(e,x,y){const d=UI.drag;if(d){d.x=x;d.y=y;if(d.from&&Math.hypot(x-d.sx,y-d.sy)>6)d.moved=true;d.over=opsNodeAt(x,y);}
   UI.hover=opsNodeAt(x,y);UI.hoverLink=UI.hover?null:opsLinkAt(x,y);cv.style.cursor=UI.hover?(d&&d.moved?'copy':'grab'):UI.hoverLink!=null?'pointer':'default';

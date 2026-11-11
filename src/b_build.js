@@ -33,6 +33,18 @@ function placeTip(e,html){const tip=$('#tip');if(!html){tip.hidden=true;return;}
 function lineThick(ax,ay,bx,by,w,c){const dx=bx-ax,dy=by-ay,n=Math.max(1,Math.ceil(Math.max(Math.abs(dx),Math.abs(dy))));
   for(let k=0;k<=n;k++)F(Math.round(ax+dx*k/n-w/2),Math.round(ay+dy*k/n-w/2),w,w,c);}
 const sitePx=s=>[s.x*4+2,s.y*4+2];
+/* Place one label box (w x h) on each segment so it avoids the obstacle boxes and the other labels.
+   Tries points along the segment, nearest the middle first; falls back to the least-overlapping one. */
+function placeOnSegments(segs,obstacles,w,h,margin=2){
+  const ov=(a,b)=>Math.max(0,Math.min(a[0]+a[2],b[0]+b[2])-Math.max(a[0],b[0])+margin)*Math.max(0,Math.min(a[1]+a[3],b[1]+b[3])-Math.max(a[1],b[1])+margin);
+  const us=[.5];for(let d=.04;d<=.42;d+=.04)us.push(.5-d,.5+d);
+  const placed=[],out=[];
+  for(const [ax,ay,bx,by] of segs){let best=null,bs=1e9;const L=Math.hypot(bx-ax,by-ay)||1,nx=-(by-ay)/L,ny=(bx-ax)/L;
+    search:for(const off of [0,14,-14,24,-24,34,-34,44,-44])for(const u of us){const cx=clamp(ax+(bx-ax)*u+nx*off,w/2+1,640-w/2-1),cy=clamp(ay+(by-ay)*u+ny*off,h/2+1,360-h/2-1),r=[cx-w/2,cy-h/2,w,h];
+      let sc=0;for(const o of obstacles)sc+=ov(r,o)*3;for(const p of placed)sc+=ov(r,p)*2;const pen=Math.abs(u-.5)*4+Math.abs(off)*.6;sc+=pen;
+      if(sc<bs){bs=sc;best=[cx,cy,r];}if(sc<=pen+1e-9)break search;}
+    placed.push(best[2]);out.push([best[0],best[1]]);}
+  return out;}
 
 /* ================= build: map ================= */
 function headframe(px,py,sel,col='#8b8c99'){
@@ -45,12 +57,14 @@ function drawBuild(t){
   blit(UI.geo?GEO:TER);blit(ROADS);
   for(const tw of WD.towns){txtS(tw.name,tw.x*4,tw.y*4+12,'#efe6cf','center');txtS(`${tw.pop} PEOPLE`,tw.x*4,tw.y*4+21,'#c9bfa6','center');}
   // tunnels
+  const obs=[...G.build.sites.map(s=>{const [px,py]=sitePx(s),lw=(s.id.length+s.name.length+1)*5.2;return [[px-10,py-15,21,23],[px-lw/2,py+7,lw,11]];}).flat(),(()=>{const [px,py]=sitePx(siteById('CC'));return [px-30,py-14,60,32];})()];
+  const bchips=placeOnSegments(G.build.tunnels.map(tn=>[...sitePx(siteById(tn.a)),...sitePx(siteById(tn.b))]),obs,32,11);
   G.build.tunnels.forEach((tn,i)=>{const A=siteById(tn.a),B=siteById(tn.b),[ax,ay]=sitePx(A),[bx,by]=sitePx(B),ts=tunnelStats(tn);
     if(UI.selLink===i)lineThick(ax,ay,bx,by,9,'#f2b33d');
     lineThick(ax,ay,bx,by,7,'#120e19');
     const dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy),nx=-dy/L,ny=dx/L;
     for(const [k,o] of [['W',-2],['A',0],['P',2]])if(tn[k])lineThick(ax+nx*o,ay+ny*o,bx+nx*o,by+ny*o,1,COL[k]);
-    const mx=(ax+bx)/2,my=(ay+by)/2;F(mx-16,my-6,32,11,'#0f0b15');F(mx-15,my-5,30,9,'#272033');txt(`${R0(ts.rel*100)}%`,mx,my-4,ts.rel<.5?'#ec4b3f':ts.rel<.75?'#f2b33d':'#77d65b','center');
+    const [mx,my]=bchips[i];F(mx-16,my-6,32,11,'#0f0b15');F(mx-15,my-5,30,9,'#272033');txt(`${R0(ts.rel*100)}%`,mx,my-4,ts.rel<.5?'#ec4b3f':ts.rel<.75?'#f2b33d':'#77d65b','center');
   });
   // control
   const [cx_,cy_]=sitePx(siteById('CC'));
