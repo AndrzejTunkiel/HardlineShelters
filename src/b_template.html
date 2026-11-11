@@ -73,6 +73,17 @@ body{font-size:15px;line-height:1.45}
 .tip{font-size:13.5px;line-height:1.4}
 #fade .fl{font-family:var(--f-mono);font-size:16px;font-weight:500}
 #fade .fl.red{font-family:var(--f-pixel);font-size:56px}
+
+/* end-of-watch statistics */
+svg.chart{display:block;width:100%;height:auto;overflow:visible;touch-action:none}
+svg.chart.mini{width:160px;height:34px}
+svg.chart .ax{font-family:var(--f-label);font-size:11px;font-weight:600;fill:var(--muted)}
+.readout{font-size:13px;min-height:1.4em;font-variant-numeric:tabular-nums}
+td.spark{padding:2px 8px}
+.endcols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.endcols.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.cause{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 10px;align-items:center;font-size:14px}
+@media (max-width:760px){.endcols,.endcols.three{grid-template-columns:1fr}}
 @media (max-width:760px){.designer{grid-template-columns:1fr}#xsec{width:100%}.floor{grid-template-columns:30px 70px 1fr 80px}.floor .bays{display:none}}
 </style>
 

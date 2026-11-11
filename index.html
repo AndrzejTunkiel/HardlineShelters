@@ -228,6 +228,17 @@ body{font-size:15px;line-height:1.45}
 .tip{font-size:13.5px;line-height:1.4}
 #fade .fl{font-family:var(--f-mono);font-size:16px;font-weight:500}
 #fade .fl.red{font-family:var(--f-pixel);font-size:56px}
+
+/* end-of-watch statistics */
+svg.chart{display:block;width:100%;height:auto;overflow:visible;touch-action:none}
+svg.chart.mini{width:160px;height:34px}
+svg.chart .ax{font-family:var(--f-label);font-size:11px;font-weight:600;fill:var(--muted)}
+.readout{font-size:13px;min-height:1.4em;font-variant-numeric:tabular-nums}
+td.spark{padding:2px 8px}
+.endcols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.endcols.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.cause{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 10px;align-items:center;font-size:14px}
+@media (max-width:760px){.endcols,.endcols.three{grid-template-columns:1fr}}
 @media (max-width:760px){.designer{grid-template-columns:1fr}#xsec{width:100%}.floor{grid-template-columns:30px 70px 1fr 80px}.floor .bays{display:none}}
 </style>
 
@@ -764,13 +775,13 @@ function commission(){
       gen:q(70+rnd()*30),scrub:q(68+rnd()*32),plant:q(60+rnd()*40),spares:1+m.STORE+(rnd()<.4?1:0),lioh:m.STORE?m.STORE+(rnd()<.5?1:0):0,x:b.x,y:b.y});}
   const order=['CC',...G.build.sites.map(s=>s.id)];
   const links=G.build.tunnels.map(t=>{const ts=tunnelStats(t);return {a:t.a,b:t.b,cap:{W:t.W?2000:0,A:t.A?600:0,P:t.P?60:0},hp:100,ok:true,rel:ts.rel,depth:t.depth,rock:ts.rockFrac,len:ts.len};});
-  S=G.S={v:3,ids:order,shift:0,defcon:1,grid:true,relief:22+Math.floor(rnd()*9),over:null,sites,links,flows:[],orders:[],mails:[],log:[],events:[],flags:{},queue:[],deck:{},nextMail:1,nextOrder:1,nextFlow:1};
+  S=G.S={v:3,ids:order,shift:0,defcon:1,grid:true,relief:22+Math.floor(rnd()*9),over:null,sites,links,flows:[],orders:[],mails:[],log:[],events:[],flags:{},queue:[],deck:{},hist:[],stats:{cause:{},overhauls:0,lioh:0,repairs:0,events:0,flowsSet:0,taken:0,evacs:0,moved:{W:0,A:0,P:0},cuts:0},nextMail:1,nextOrder:1,nextFlow:1};
   G.phase='ops';UI.sel='CC';UI.selLink=null;UI.tab='shelter';UI.pick=null;
   ev('Shelters commissioned. Tanks full, staff of twelve at each site.',true);
   closeModal();fadeToWar();
 }
 let fadeT=[],warStarted=false;
-function startWar(){if(warStarted)return;warStarted=true;S.events=[];attack();for(const [at,k] of SCHED)if(at===0)scheduled(k);refresh();}
+function startWar(){if(warStarted)return;warStarted=true;S.events=[];attack();S.stats.cuts=S.links.filter(l=>!l.ok).length;record();for(const [at,k] of SCHED)if(at===0)scheduled(k);refresh();}
 function fadeToWar(){
   const f=$('#fade'),sp=reduced?.35:1;warStarted=false;f.innerHTML='';f.hidden=false;void f.offsetWidth;f.classList.add('on');
   const at=(ms,fn)=>fadeT.push(setTimeout(fn,ms*sp));
@@ -1008,9 +1019,9 @@ const EFFECTS={
     ()=>[true,"'Understood, Control.'"]],
   vent:[m=>{const s=st(m.p.s);s.air=clamp(s.air+20,0,100);s.morale-=12;s.hull-=4;ev(`${m.p.s} vent purge: air +20, fallout in the intake room.`);return [true,'Purge authorized. Air +20.'];},()=>[true,'They stay sealed.']],
   evac:[m=>{const a=st(m.p.s),b=st(m.p.to);if(a.lost||a.evac)return [false,'That shelter is already dark.'];const l=findLink(m.p.s,m.p.to);if(!l||!l.ok)return [false,'The tunnel is severed. Nobody can get through.'];
-      const n=a.pop;b.pop+=n;a.pop=0;a.evac=true;b.morale-=8;S.flows=S.flows.filter(f=>f.from!==m.p.s&&f.to!==m.p.s);S.queue.push([S.shift+1,'guests',m.p]);ev(`${m.p.s} evacuated: ${n} people moved to ${m.p.to}.`);return [true,`Evacuation approved. ${n} people moving.`];},
+      const n=a.pop;b.pop+=n;a.pop=0;a.evac=true;S.stats.evacs++;b.morale-=8;S.flows=S.flows.filter(f=>f.from!==m.p.s&&f.to!==m.p.s);S.queue.push([S.shift+1,'guests',m.p]);ev(`${m.p.s} evacuated: ${n} people moved to ${m.p.to}.`);return [true,`Evacuation approved. ${n} people moving.`];},
     m=>{st(m.p.s).morale-=10;S.queue.push([S.shift+1,'hold',m.p]);return [true,"'Holding.'"];}],
-  hatch:[m=>{const s=st(m.p.s);s.pop+=m.p.n;s.civ+=m.p.n;s.air-=4;s.morale+=6;S.flags.hatch=m.p.n;S.queue.push([S.shift+1,'hatchopen',m.p]);ev(`${m.p.s} took in ${m.p.n} people from the surface.`);return [true,`Hatch opened. ${m.p.n} people in decon.`];},
+  hatch:[m=>{const s=st(m.p.s);s.pop+=m.p.n;s.civ+=m.p.n;s.air-=4;s.morale+=6;S.flags.hatch=m.p.n;S.stats.taken+=m.p.n;S.queue.push([S.shift+1,'hatchopen',m.p]);ev(`${m.p.s} took in ${m.p.n} people from the surface.`);return [true,`Hatch opened. ${m.p.n} people in decon.`];},
     m=>{st(m.p.s).morale-=25;S.queue.push([S.shift+1,'hatchshut',m.p]);return [true,'Hatch stays sealed.'];}],
 };
 
@@ -1025,26 +1036,26 @@ function setFlow(t,from,to,amt){const a=st(from),b=st(to),old=S.flows.find(f=>f.
   if(amt<=0){if(!old)return [false,'There is no such flow to stop.'];S.flows=S.flows.filter(f=>f!==old);ev(`Stopped ${RNAME[t]} flow ${from}>${to}.`,true);return [true,`${cap1(RNAME[t])} flow ${from} → ${to} stopped.`];}
   if(a.lost||a.evac||b.lost||b.evac)return [false,'One of those shelters is dark.'];
   if(!staticRoute(t,from,to))return [false,`No working ${t==='W'?'water main':t==='A'?'air duct':'power cable'} connects ${from} and ${to}.`];
-  if(old)old.amt=amt;else S.flows.push({id:S.nextFlow++,type:t,from,to,amt});const f=old||S.flows[S.flows.length-1];compute();
+  if(S.stats)S.stats.flowsSet++;if(old)old.amt=amt;else S.flows.push({id:S.nextFlow++,type:t,from,to,amt});const f=old||S.flows[S.flows.length-1];compute();
   ev(`Set ${RNAME[t]} flow ${from}>${to} ${amt} ${UNIT[t]}.`,true);
   return [true,`${cap1(RNAME[t])} ${from} → ${to}: ${num(amt)} ${UNIT[t]}. ${f.note==='STANDBY'?'Standby until the grid fails.':`Moving ${num(f.actual)}, ${num(f.got)} arrives (${f.note.toLowerCase()}).`}`];}
 const SYSNAME={gen:'generator',scrub:'scrubbers',plant:'water plant'};
 function fix(id,sys){const s=st(id);if(s.lost||s.evac)return [false,`${id} is dark.`];if(s.busy)return [false,`${id} staff are busy: ${s.busy.toLowerCase()}.`];
   if(sys==='scrub'&&!s.scrubCap||sys==='plant'&&!s.plantCap||sys==='gen'&&!s.gcap)return [false,`${id} has no ${SYSNAME[sys]} to overhaul.`];
   if(s.spares<1)return [false,`${id} has no spare kits.`];
-  const amt=R0(25+15*clamp(s.morale,0,100)/100),before=R0(s[sys]);s.spares--;s[sys]=clamp(s[sys]+amt,0,100);s.busy='OVERHAUL '+SYSNAME[sys].toUpperCase();
+  if(S.stats)S.stats.overhauls++;const amt=R0(25+15*clamp(s.morale,0,100)/100),before=R0(s[sys]);s.spares--;s[sys]=clamp(s[sys]+amt,0,100);s.busy='OVERHAUL '+SYSNAME[sys].toUpperCase();
   let extra='';if(sys==='plant'&&s.leak){s.leak=0;extra=' Tank leak sealed.';}ev(`${id} overhauled ${SYSNAME[sys]}: ${before}% > ${R0(s[sys])}%.${extra}`,true);
   return [true,`${id} ${SYSNAME[sys]} ${before}% → ${R0(s[sys])}%. Kit used; staff busy this shift.${extra}`];}
-function useLioh(id){const s=st(id);if(s.lioh<1)return [false,`${id} has no LiOH.`];s.lioh--;const b=R0(s.air);s.air=clamp(s.air+15,0,100);ev(`${id} opened a LiOH pallet: air ${b}% > ${R0(s.air)}%.`,true);return [true,`${id} opened a LiOH pallet. Air ${b}% → ${R0(s.air)}%.`];}
+function useLioh(id){const s=st(id);if(s.lioh<1)return [false,`${id} has no LiOH.`];s.lioh--;if(S.stats)S.stats.lioh++;const b=R0(s.air);s.air=clamp(s.air+15,0,100);ev(`${id} opened a LiOH pallet: air ${b}% > ${R0(s.air)}%.`,true);return [true,`${id} opened a LiOH pallet. Air ${b}% → ${R0(s.air)}%.`];}
 function repair(x,y,who){const l=findLink(x,y);if(!l)return [false,'No such tunnel.'];if(l.ok&&l.hp>=100)return [false,'That tunnel is in full working order.'];
   if(ids().some(i=>st(i).repair?.link===linkName(l)))return [false,'A crew is already on it.'];
   const s=st(who);if(!s||s.lost||s.evac)return [false,`${who} is dark.`];if(s.busy)return [false,`${who} staff are busy.`];if(s.spares<1)return [false,`${who} has no spare kit.`];
-  const n=l.ok?1:2;s.spares--;s.repair={link:linkName(l),left:n};s.busy='REPAIR '+linkName(l);ev(`${who} sent a crew to repair ${linkName(l)}.`,true);
+  const n=l.ok?1:2;s.spares--;if(S.stats)S.stats.repairs++;s.repair={link:linkName(l),left:n};s.busy='REPAIR '+linkName(l);ev(`${who} sent a crew to repair ${linkName(l)}.`,true);
   return [true,`${who} crew heading into the ${linkName(l)} tunnel with a kit. ${n} shift${n>1?'s':''}.`];}
 
 /* ---------------- shift ---------------- */
 function ev(t,quiet){S.log.push([S.shift,t]);if(!quiet)S.events.push(t);if(S.log.length>300)S.log.shift();}
-function casualties(s,n,cause){n=Math.min(Math.max(1,R0(n)),s.pop);if(n<=0)return;s.pop-=n;s.dead+=n;s.morale-=6;ev(`${s.id} lost ${n} ${n===1?'person':'people'} (${cause}).`);
+function casualties(s,n,cause){n=Math.min(Math.max(1,R0(n)),s.pop);if(n<=0)return;if(S.stats)S.stats.cause[cause]=(S.stats.cause[cause]||0)+n;s.pop-=n;s.dead+=n;s.morale-=6;ev(`${s.id} lost ${n} ${n===1?'person':'people'} (${cause}).`);
   (S.flags.cas=S.flags.cas||[]).push(`${s.id} ${s.name}: ${n} dead (${cause}). ${s.pop} left; air ${R0(s.air)}%, water ${num(s.water)} L.`);
   if(s.pop<=0){s.lost=true;ev(`${s.id} ${s.name} has gone silent.`);send({from:'SYS',subj:`CARRIER LOST ${s.id}`,body:`SHELTERNET has no carrier from ${s.name}.\nListening watch maintained.`});S.flows=S.flows.filter(f=>f.from!==s.id&&f.to!==s.id);}}
 function endShift(){
@@ -1082,6 +1093,8 @@ function endShift(){
   if(S.flags.cas&&S.flags.cas.length){send({from:'SYS',subj:`CASUALTY REPORT · ${S.flags.cas.length} SHELTER${S.flags.cas.length>1?'S':''}`,body:S.flags.cas.join('\n')});S.flags.cas=[];}
   if(st('CC').lost||(t>WAR&&shelters().length&&shelters().every(i=>st(i).lost||st(i).evac)))S.over='lost';else if(t>=S.relief)S.over='won';
   const nm=S.mails.filter(m=>m.shift===t).length;
+  for(const f of S.flows)if(f.actual)S.stats.moved[f.type]+=f.got||0;
+  record();
   S.over?openEnd():openReport();if(t===WAR)alarm();else if(nm)chime();
 }
 function intake(wave){for(const id of ids()){const s=st(id);if(s.lost)continue;
@@ -1317,25 +1330,70 @@ function openReport(){UI.modal={type:'report'};const nm=S.mails.filter(m=>m.shif
   ${nm.length?`<div class="sect"><span class="lbl">New mail</span><div class="opts">${nm.map(m=>`<button class="btn" data-open="${m.id}" type="button" style="${m.flash?'color:#ffb4a8':''}">${esc(fromName(m.from))}: ${esc(m.subj)}</button>`).join('')}</div></div>`:''}
   <div class="foot"><button class="btn" id="rClose" type="button">Back to the board</button>${nm.length?'<button class="btn primary" id="rMail" type="button">Read mail</button>':''}</div>`);
   $('#rClose').onclick=closeModal;if($('#rMail'))$('#rMail').onclick=()=>openMail(nm[0].id);document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openMail(+b.dataset.open));}
-function openEnd(){UI.modal={type:'end'};const won=S.over==='won';let alive=0,dead=0;
-  const rows=ids().map(id=>{const s=st(id);alive+=s.pop;dead+=s.dead;return `<tr><td>${id} ${esc(s.name)}</td><td class="num">${s.pop}</td><td class="num">${s.dead}</td><td>${s.evac?'Evacuated':s.lost?'<span class="neg">Lost</span>':'Holding'}</td></tr>`;}).join('');
-  const total=alive+dead,pct=total?alive/total:0,spent=buildTotals().sites+buildTotals().tun;
-  const rating=!won?'The board went dark before relief arrived.':pct>.98?'Every shelter held. Hollis will want to know how.':pct>.9?'The region held. Not everyone came up the elevators.':pct>.7?'Most came home. The tunnels remember the rest.':'Relief found more silence than voices.';
-  modal(`<h2>${won?`Relief convoy at Shelter Control · ${dtg(S.shift)}`:'Shelter Control has stopped transmitting'}</h2><table class="res"><thead><tr><th>Shelter</th><th>Alive</th><th>Dead</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
-  <div class="big">${num(alive)} of ${num(total)} people alive</div><div>${rating}</div><div class="dim">Construction cost ${mil(spent)} · ${money(spent/Math.max(1,alive))} per survivor.</div>
-  <div class="foot"><button class="btn" id="eBoard" type="button">Look at the board</button><button class="btn" id="eSame" type="button">Rebuild on this map</button><button class="btn primary" id="eNew" type="button">New region</button></div>`);
+function record(){if(!S.hist)return;const pop={},air={},water={};let alive=0,dead=0,w=0,f=0,fd=0;
+  for(const id of ids()){const s=st(id);pop[id]=s.pop;air[id]=R0(s.air);water[id]=s.water;alive+=s.pop;dead+=s.dead;w+=s.water;f+=s.fuel;fd+=s.food;}
+  S.hist.push({t:S.shift,pop,air,water,alive,dead,water_t:w,fuel_t:f,food_t:fd,links:S.links.filter(l=>l.ok).length});}
+function niceMax(v){if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v))),m=v/p;return (m<=1?1:m<=2?2:m<=2.5?2.5:m<=5?5:10)*p;}
+const shiftLabel=t=>{const h=6+t*6,d=Math.floor(h/24);return `Day ${d+1} ${String(h%24).padStart(2,'0')}:00`;};
+function chartSVG(vals,{w=640,h=150,color='var(--amber)',unit='',mini=false,max=null}={}){
+  const n=vals.length,top=niceMax(max??Math.max(1,...vals)),pl=mini?2:52,pr=mini?2:10,pt=mini?4:10,pb=mini?4:22,iw=w-pl-pr,ih=h-pt-pb;
+  const X=i=>pl+(n>1?i/(n-1):0)*iw,Y=v=>pt+ih-clamp(v/top,0,1)*ih;
+  const pts=vals.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+  let g='';
+  if(!mini){for(const f of [0,.5,1]){const yy=Y(top*f);g+=`<line x1="${pl}" x2="${w-pr}" y1="${yy}" y2="${yy}" stroke="#3a3050" stroke-width="1"/><text x="${pl-6}" y="${yy+4}" text-anchor="end" class="ax">${num(top*f)}</text>`;}
+    g+=`<text x="${pl}" y="${h-6}" class="ax">${shiftLabel(S.hist[0].t)}</text><text x="${w-pr}" y="${h-6}" text-anchor="end" class="ax">${shiftLabel(S.hist[n-1].t)}</text>`;}
+  const last=vals[n-1];
+  return `<svg class="chart${mini?' mini':''}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="${unit}" data-vals="${vals.join(',')}" data-pl="${pl}" data-iw="${iw}" data-pt="${pt}" data-ih="${ih}" data-top="${top}" data-unit="${unit}">${g}
+    <polygon points="${X(0)},${pt+ih} ${pts} ${X(n-1)},${pt+ih}" fill="${color}" fill-opacity=".16"/>
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    <circle cx="${X(n-1)}" cy="${Y(last)}" r="${mini?2.5:4}" fill="${color}" stroke="var(--panel)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    <line class="xh" x1="0" x2="0" y1="${pt}" y2="${pt+ih}" stroke="var(--paper)" stroke-width="1" vector-effect="non-scaling-stroke" visibility="hidden"/>
+    <rect x="0" y="0" width="${w}" height="${h}" fill="transparent"/></svg>`;}
+function bindCharts(root){root.querySelectorAll('svg.chart').forEach(sv=>{
+  const vals=sv.dataset.vals.split(',').map(Number),pl=+sv.dataset.pl,iw=+sv.dataset.iw,xh=sv.querySelector('.xh'),out=sv.parentElement.querySelector('.readout');
+  const show=e=>{const r=sv.getBoundingClientRect(),vb=sv.viewBox.baseVal,px=(e.clientX-r.left)*vb.width/r.width,i=clamp(Math.round((px-pl)/Math.max(1,iw)*(vals.length-1)),0,vals.length-1),x=pl+(vals.length>1?i/(vals.length-1):0)*iw;
+    xh.setAttribute('x1',x);xh.setAttribute('x2',x);xh.setAttribute('visibility','visible');if(out)out.textContent=`${shiftLabel(S.hist[i].t)}: ${num(vals[i])} ${sv.dataset.unit}`;};
+  sv.addEventListener('pointermove',show);sv.addEventListener('pointerdown',show);
+  sv.addEventListener('pointerleave',()=>{xh.setAttribute('visibility','hidden');if(out)out.textContent=out.dataset.rest;});});}
+function openEnd(){UI.modal={type:'end'};const won=S.over==='won',H=S.hist.length?S.hist:[{t:S.shift,pop:{},air:{},water:{},alive:0,dead:0,water_t:0,fuel_t:0,food_t:0}];
+  let alive=0,dead=0;for(const id of ids()){alive+=st(id).pop;dead+=st(id).dead;}
+  const total=alive+dead,pct=total?alive/total:0,b=buildTotals(),spent=b.sites+b.tun,days=(S.shift*6/24);
+  const rating=!won?'The board went dark before relief arrived.':pct>.95?'Nearly every shelter held. Hollis will want to know how.':pct>.8?'The region held. Not everyone came up the elevators.':pct>.55?'Most came home. The tunnels remember the rest.':pct>.3?'Relief found the shelters half empty.':'Relief found more silence than voices.';
+  const tile=(l,v,sub='',cls='')=>`<div><span class="lbl">${l}</span><span class="v ${cls}">${v}</span>${sub?`<span class="dim" style="font-size:13px">${sub}</span>`:''}</div>`;
+  const ro=(txt)=>`<div class="readout dim" data-rest="${esc(txt)}">${esc(txt)}</div>`;
+  const rows=ids().map(id=>{const s=st(id),pv=H.map(h=>h.pop[id]||0),minAir=Math.min(...H.map(h=>h.air[id]??100)),dry=H.filter(h=>h.water[id]===0).length,start=Math.max(...pv,1);
+    return `<tr><td>${id} ${esc(s.name.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()))}</td><td class="spark">${chartSVG(pv,{w:160,h:34,mini:true,unit:'people',max:start})}</td><td class="num">${s.pop}</td><td class="num ${s.dead?'neg':''}">${s.dead}</td><td class="num ${minAir<45?'neg':''}">${minAir}%</td><td class="num ${dry?'neg':''}">${dry}</td><td>${s.evac?'Evacuated':s.lost?'<span class="neg">Lost</span>':'Holding'}</td></tr>`;}).join('');
+  const causes=Object.entries(S.stats?.cause||{}).sort((a,b)=>b[1]-a[1]),cmax=Math.max(1,...causes.map(c=>c[1]));
+  const st_=S.stats||{moved:{}};
+  modal(`<div class="row"><h2>${won?`Relief convoy at Shelter Control · ${dtg(S.shift)}`:'Shelter Control has stopped transmitting'}</h2></div>
+  <div class="big">${rating}</div>
+  <div class="kv">${tile('People alive',`${num(alive)} / ${num(total)}`,`${R0(pct*100)}% of everyone sheltered`,pct<.5?'neg':pct>.85?'pos':'')}${tile('Dead',num(dead),'',dead?'neg':'')}${tile('Sealed',`${days.toFixed(1)} days`,`${S.shift} shifts`)}${tile('Construction',mil(spent),`${money(spent/Math.max(1,alive))} per survivor`)}</div>
+  <div class="sect"><span class="lbl">People alive across the region</span>${chartSVG(H.map(h=>h.alive),{unit:'people alive'})}${ro('Hover the chart to read any shift.')}</div>
+  <div class="sect"><span class="lbl">Shelter by shelter</span><div style="overflow-x:auto"><table class="res"><thead><tr><th>Shelter</th><th>People over time</th><th>Alive</th><th>Dead</th><th>Lowest air</th><th>Shifts dry</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+  <div class="endcols">
+    <div class="sect"><span class="lbl">Causes of death</span>${causes.length?`<div class="cause">${causes.map(([c,v])=>`<span>${esc(cap1(c).replace('Co2','CO₂'))}</span><div class="meter"><i style="width:${v/cmax*100}%;--c:var(--amber)"></i></div><span class="num">${num(v)}</span>`).join('')}</div>`:'<div class="pos">Nobody died.</div>'}</div>
+    <div class="sect"><span class="lbl">What you did</span><div class="kv">${tile('Overhauls',st_.overhauls||0)}${tile('LiOH opened',st_.lioh||0)}${tile('Tunnel repairs',st_.repairs||0)}${tile('Flows set',st_.flowsSet||0)}${tile('Water moved',`${num(st_.moved.W||0)} L`)}${tile('Power moved',`${num((st_.moved.P||0)*6)} kWh`)}${tile('Taken in at hatches',st_.taken||0)}${tile('Evacuations',st_.evacs||0)}${tile('Events survived',st_.events||0)}${tile('Tunnels cut',st_.cuts||0)}</div></div>
+  </div>
+  <div class="sect"><span class="lbl">Stores across the network</span><div class="endcols three">
+    <div><div class="dim" style="font-size:13px">Water, L</div>${chartSVG(H.map(h=>h.water_t),{w:320,h:120,color:'var(--water)',unit:'L of water'})}${ro(`End: ${num(H[H.length-1].water_t)} L`)}</div>
+    <div><div class="dim" style="font-size:13px">Diesel, L</div>${chartSVG(H.map(h=>h.fuel_t),{w:320,h:120,color:'var(--fuel)',unit:'L of diesel'})}${ro(`End: ${num(H[H.length-1].fuel_t)} L`)}</div>
+    <div><div class="dim" style="font-size:13px">Food, person-days</div>${chartSVG(H.map(h=>h.food_t),{w:320,h:120,color:'#c9a46a',unit:'person-days of food'})}${ro(`End: ${num(H[H.length-1].food_t)} person-days`)}</div>
+  </div></div>
+  <div class="foot"><button class="btn" id="eBoard" type="button">Look at the board</button><button class="btn" id="eSame" type="button">Rebuild on this map</button><button class="btn primary" id="eNew" type="button">New region</button></div>`,1100);
+  bindCharts($('#modalRoot'));
   $('#eNew').onclick=()=>{newGame();closeModal();};$('#eBoard').onclick=closeModal;
   $('#eSame').onclick=()=>{G.phase='build';S=G.S=null;UI.sel=null;UI.selLink=null;UI.tab='site';recomputeRoads();closeModal();};}
+
 
 /* ---------------- random event deck ---------------- */
 function pickW(items,wf){const w=items.map(wf),tot=w.reduce((a,b)=>a+b,0);if(tot<=0)return null;let x=rnd()*tot;for(let i=0;i<items.length;i++){x-=w[i];if(x<=0)return items[i];}return items[items.length-1];}
 const DECK=[{k:'aftershock',w:3,max:5},{k:'genloss',w:2.5,max:4},{k:'vent',w:2,max:2},{k:'fire',w:2.5,max:5},{k:'leak',w:3,max:6},{k:'flood',w:2,max:3},
   {k:'fuelbad',w:1.5,max:2},{k:'sick',w:2,max:3},{k:'hatch',w:2.5,max:4},{k:'delay',w:1.2,max:2},{k:'scrubfault',w:2.5,max:5}];
 function drawEvents(){const r=rnd(),n=r<.08?0:r<.5?1:r<.86?2:3;
-  for(let i=0;i<n;i++){const pool=DECK.filter(d=>(S.deck[d.k]||0)<d.max);const d=pickW(pool,x=>x.w);if(!d)return;if(runEvent(d.k))S.deck[d.k]=(S.deck[d.k]||0)+1;}}
+  for(let i=0;i<n;i++){const pool=DECK.filter(d=>(S.deck[d.k]||0)<d.max);const d=pickW(pool,x=>x.w);if(!d)return;if(runEvent(d.k)&&S.stats.events++>=0)S.deck[d.k]=(S.deck[d.k]||0)+1;}}
 function runEvent(k){const live=liveShelters();if(!live.length)return false;const any=()=>live[Math.floor(rnd()*live.length)];
   switch(k){
-    case 'aftershock':{const ch=[];for(const l of S.links){if(!l.ok)continue;const r=rnd(),f=1-l.rel;if(r<f*.35){l.ok=false;l.hp=0;ch.push(`${linkName(l)} severed`);}else if(r<f*.9){l.hp=Math.max(20,l.hp-R0(25+rnd()*30));ch.push(`${linkName(l)} down to ${l.hp}%`);}}
+    case 'aftershock':{const ch=[];for(const l of S.links){if(!l.ok)continue;const r=rnd(),f=1-l.rel;if(r<f*.35){l.ok=false;l.hp=0;S.stats.cuts++;ch.push(`${linkName(l)} severed`);}else if(r<f*.9){l.hp=Math.max(20,l.hp-R0(25+rnd()*30));ch.push(`${linkName(l)} down to ${l.hp}%`);}}
       for(const id of live){const s=st(id);s.hull=Math.max(0,R0(s.hull-(1-s.prot)*12*rnd()));}
       ev(`Aftershock.${ch.length?' '+ch.join(', ')+'.':' The tunnels held.'}`);sendKey('aftershock',{ch});return true;}
     case 'genloss':{const c=pickW(live.filter(i=>st(i).gcap&&st(i).gen>20),i=>1.1-st(i).prot);if(!c)return false;st(c).gen=Math.max(0,st(c).gen-40);ev(`${c} generator plant damaged.`);sendKey('genloss',{s:c});return true;}
