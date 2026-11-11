@@ -1,0 +1,1433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hardline Shelters</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Silkscreen&display=swap">
+<style>
+/* Layout: control-room board. Top status bar, pixel tunnel map (left, wide), shelter panel (right); stacks on phones. Deliberately dark, single look. */
+:root{
+  --rock:#1b1624;      /* page ground: deep rock */
+  --panel:#272033;     /* raised panels */
+  --panel-hi:#3a3050;  /* bevel light */
+  --panel-lo:#120e19;  /* bevel shadow */
+  --paper:#efe6cf;     /* text */
+  --muted:#a197b4;     /* secondary text */
+  --amber:#f2b33d;     /* accent: power, selection, primary actions */
+  --water:#4a9be8;
+  --air:#9df0e4;
+  --fuel:#e8793c;
+  --ok:#77d65b;
+  --warn:#f2b33d;
+  --bad:#ec4b3f;
+  --f-ui:'Pixelify Sans','Trebuchet MS',system-ui,sans-serif;
+  --f-label:'Silkscreen','Courier New',monospace;
+  color-scheme:dark;
+}
+html,body{background:var(--rock);color:var(--paper)}
+body{font-family:var(--f-ui);font-size:16px;line-height:1.35}
+button,input,select{font:inherit;color:inherit}
+.app{max-width:1500px;margin:0 auto;padding-block:12px 20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:12px}
+.px{background:var(--panel);border:2px solid var(--panel-lo);box-shadow:inset 2px 2px 0 var(--panel-hi),inset -2px -2px 0 #1a1424}
+.lbl{font-family:var(--f-label);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+
+/* top bar */
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:10px 14px}
+.brand{display:flex;flex-direction:column;line-height:1;margin-right:auto}
+.brand b{font-family:var(--f-label);font-size:22px;letter-spacing:.06em;color:var(--amber);font-weight:400}
+.brand span{font-family:var(--f-label);font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:.1em}
+.clock{font-size:20px;font-weight:500}
+.defcon{display:flex;align-items:center;gap:6px}
+.pips{display:flex;gap:3px}
+.pip{width:14px;height:14px;background:#2e2640;border:2px solid var(--panel-lo)}
+.pip.on{background:var(--c)}
+.pip.blink{animation:blink 1s steps(1) infinite}
+.stat{display:flex;flex-direction:column;line-height:1.1}
+.stat strong{font-size:18px;font-weight:500}
+.btn{background:var(--panel-hi);border:2px solid var(--panel-lo);box-shadow:inset 2px 2px 0 #50466a,inset -2px -2px 0 #241c33;padding:6px 12px;cursor:pointer;font-weight:500;position:relative;line-height:1.2}
+.btn:hover{background:#463b60}
+.btn:active{box-shadow:inset -2px -2px 0 #50466a,inset 2px 2px 0 #241c33;transform:translateY(1px)}
+.btn:focus-visible,.tab:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.btn.primary{background:var(--amber);color:#2a1a05;box-shadow:inset 2px 2px 0 #ffd77e,inset -2px -2px 0 #b97a12}
+.btn.primary:hover{background:#ffc04f}
+.btn.danger{background:#7a2a2a;box-shadow:inset 2px 2px 0 #a0403c,inset -2px -2px 0 #4a1717}
+.btn.small{padding:3px 8px;font-size:14px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.badge{display:inline-block;min-width:20px;padding:0 5px;margin-left:6px;background:var(--bad);color:#fff;font-family:var(--f-label);font-size:11px;line-height:18px;text-align:center}
+.badge.flash{animation:blink .8s steps(1) infinite}
+
+/* main */
+.main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:12px;align-items:start}
+.mapcard{padding:8px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.mapscroll{overflow-x:auto;overflow-y:hidden;position:relative}
+#map{display:block;width:100%;min-width:640px;image-rendering:pixelated;image-rendering:crisp-edges;cursor:pointer;touch-action:none;background:#1d1826}
+.maphint{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:14px;color:var(--muted)}
+.key{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:6px;display:inline-block}
+#hint{color:var(--paper)}
+#hint.pick{color:var(--amber);animation:blink 1s steps(1) infinite}
+.side{display:flex;flex-direction:column;min-width:0}
+.tabs{display:flex}
+.tab{flex:1;padding:8px 6px;background:#1f192b;border:2px solid var(--panel-lo);border-bottom:none;cursor:pointer;font-family:var(--f-label);font-size:12px;color:var(--muted)}
+.tab[aria-selected="true"]{background:var(--panel);color:var(--amber)}
+.sidebody{padding:12px;display:flex;flex-direction:column;gap:12px;min-height:520px}
+.sect{display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:2px dashed #3a3050}
+.sect:first-child{border-top:none;padding-top:0}
+.row{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.big{font-size:22px;font-weight:500}
+.chip{font-family:var(--f-label);font-size:11px;padding:2px 6px;border:2px solid currentColor}
+.chip.OK{color:var(--ok)}.chip.WARN{color:var(--warn)}.chip.CRIT{color:var(--bad);animation:blink 1s steps(1) infinite}.chip.DARK,.chip.EVAC{color:var(--muted)}
+.meter{height:14px;background:#15111d;border:2px solid var(--panel-lo);position:relative;overflow:hidden}
+.meter i{position:absolute;inset:0 auto 0 0;background:var(--c);
+  background-image:repeating-linear-gradient(90deg,transparent 0 6px,rgba(0,0,0,.28) 6px 8px)}
+.meter b{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--paper)}
+.stack{display:flex;height:16px;background:#15111d;border:2px solid var(--panel-lo);position:relative}
+.stack span{height:100%;background:var(--c);background-image:repeating-linear-gradient(90deg,transparent 0 6px,rgba(0,0,0,.25) 6px 8px)}
+.stack span.off{background:repeating-linear-gradient(45deg,var(--bad) 0 3px,#15111d 3px 6px)}
+.stack b{position:absolute;top:-4px;bottom:-4px;width:3px;background:var(--paper)}
+.ledger{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:14px}
+.ledger .tot{border-top:2px solid #3a3050;padding-top:2px;font-weight:500}
+.pos{color:var(--ok)}.neg{color:var(--bad)}.dim{color:var(--muted)}
+.equip{display:grid;grid-template-columns:96px 1fr auto;gap:6px 8px;align-items:center;font-size:14px}
+.actions{display:flex;flex-wrap:wrap;gap:6px}
+.lines{display:flex;flex-direction:column;gap:6px}
+.lineitem{display:grid;grid-template-columns:64px 1fr auto;gap:8px;align-items:center;font-size:14px;cursor:pointer;padding:4px;border:2px solid transparent}
+.lineitem:hover{border-color:#3a3050}
+.minibars{display:flex;flex-direction:column;gap:2px}
+.mb{height:5px;background:#15111d;position:relative}
+.mb i{position:absolute;inset:0 auto 0 0;background:var(--c)}
+.flow{display:grid;grid-template-columns:1fr auto;gap:4px 8px;padding:8px;background:#1f192b;border:2px solid var(--panel-lo);font-size:14px}
+.flow input[type=range]{grid-column:1/-1}
+.ticker{padding:8px 12px;display:flex;gap:10px;align-items:baseline;font-size:14px;min-width:0}
+.ticker .lbl{flex:none}
+.ticker div{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* range */
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:20px;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:8px;background:#15111d;border:2px solid var(--panel-lo)}
+input[type=range]::-moz-range-track{height:8px;background:#15111d;border:2px solid var(--panel-lo)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:18px;margin-top:-7px;background:var(--c,var(--amber));border:2px solid var(--panel-lo)}
+input[type=range]::-moz-range-thumb{width:12px;height:16px;border-radius:0;background:var(--c,var(--amber));border:2px solid var(--panel-lo)}
+input[type=number]{width:90px;background:#15111d;border:2px solid var(--panel-lo);padding:2px 6px;text-align:right}
+
+/* modals */
+.veil{position:fixed;inset:0;background:rgba(10,7,14,.72);display:flex;align-items:center;justify-content:center;z-index:50;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.modal{width:min(760px,100%);max-height:100%;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.modal h2{margin:0;font-family:var(--f-label);font-weight:400;font-size:18px;color:var(--amber);letter-spacing:.04em;text-wrap:balance}
+.modal .foot{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.xres{display:flex;flex-direction:column;gap:6px;padding:10px;background:#1f192b;border:2px solid var(--panel-lo)}
+.xres.na{opacity:.55}
+.xres .top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.xres .ico{width:16px;height:16px;background:var(--c)}
+.xres h3{margin:0;font-size:17px;font-weight:500;flex:1}
+.fx{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:14px}
+.fx>div{background:#1f192b;border:2px solid var(--panel-lo);padding:8px}
+.mail{display:grid;grid-template-columns:260px minmax(0,1fr);gap:12px;min-height:420px}
+.mlist{display:flex;flex-direction:column;gap:2px;max-height:520px;overflow:auto;background:#1f192b;border:2px solid var(--panel-lo);padding:4px}
+.mitem{display:flex;flex-direction:column;padding:6px 8px;cursor:pointer;border:2px solid transparent;font-size:14px;line-height:1.2}
+.mitem .s{font-weight:500}
+.mitem.unread .s::before{content:"";display:inline-block;width:8px;height:8px;background:var(--amber);margin-right:6px}
+.mitem.flash .s{color:var(--bad)}
+.mitem.sel{background:var(--panel-hi);border-color:var(--amber)}
+.mitem .f{color:var(--muted);font-size:13px}
+.reader{display:flex;flex-direction:column;gap:10px;min-width:0}
+.reader .hd{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:14px}
+.reader pre{white-space:pre-wrap;font-family:var(--f-ui);font-size:16px;margin:0;line-height:1.45;max-width:66ch}
+.reader pre.flash{color:#ffb4a8}
+.opts{display:flex;flex-direction:column;gap:6px}
+.opts .btn{text-align:left}
+.opts .btn.sel{outline:2px solid var(--amber);outline-offset:1px}
+.title-screen{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+.title-screen h1{margin:0;font-family:var(--f-label);font-weight:400;font-size:44px;color:var(--amber);line-height:1}
+.title-screen p{margin:0;max-width:60ch}
+.evlist{display:flex;flex-direction:column;gap:4px;margin:0;padding:0;list-style:none}
+.evlist li::before{content:"▸ ";color:var(--amber)}
+table.res{border-collapse:collapse;width:100%;font-size:15px}
+table.res td,table.res th{padding:4px 8px;text-align:left;border-bottom:2px solid #3a3050}
+table.res th{font-family:var(--f-label);font-size:11px;color:var(--muted);font-weight:400}
+.toast{position:fixed;left:50%;bottom:max(16px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;padding:10px 14px;max-width:min(640px,calc(100% - 32px));font-size:15px}
+.toast.err{border-color:var(--bad);color:#ffd0c8}
+.tip{position:fixed;z-index:40;pointer-events:none;padding:6px 8px;font-size:13px;line-height:1.3;max-width:260px}
+@keyframes blink{50%{opacity:.25}}
+@media (max-width:1050px){.main{grid-template-columns:1fr}.sidebody{min-height:0}}
+@media (max-width:640px){.mail{grid-template-columns:1fr}.mlist{max-height:220px}.fx{grid-template-columns:1fr}.brand{margin-right:0;width:100%}}
+@media (prefers-reduced-motion:reduce){.pip.blink,.chip.CRIT,.badge.flash,#hint.pick{animation:none}}
+</style>
+
+<style>
+/* builder additions */
+.phase{font-family:var(--f-label);font-size:11px;padding:3px 8px;border:2px solid var(--amber);color:var(--amber);letter-spacing:.08em}
+.phase.war{border-color:var(--bad);color:var(--bad)}
+.designer{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:start}
+#xsec{display:block;width:360px;max-width:100%;image-rendering:pixelated;image-rendering:crisp-edges;background:#2b2240;border:2px solid var(--panel-lo)}
+.dctl{display:flex;flex-direction:column;gap:12px;min-width:0}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg .btn{min-width:46px}
+.seg .btn.on{background:var(--amber);color:#2a1a05;box-shadow:inset 2px 2px 0 #ffd77e,inset -2px -2px 0 #b97a12}
+.floors{display:flex;flex-direction:column;gap:2px;max-height:230px;overflow:auto;background:#1f192b;border:2px solid var(--panel-lo);padding:4px}
+.floor{display:grid;grid-template-columns:34px 76px 1fr 86px 56px;gap:6px;align-items:center;font-size:14px;padding:2px 4px}
+.floor select{background:#15111d;border:2px solid var(--panel-lo);padding:1px 4px}
+.mat{font-family:var(--f-label);font-size:10px;padding:1px 4px}
+.mat.sand{background:#c9a85e;color:#2a1a05}.mat.rock{background:#77757f;color:#fff}.mat.mix{background:linear-gradient(90deg,#c9a85e 50%,#77757f 50%);color:#fff}
+.mods{display:grid;grid-template-columns:14px minmax(0,1fr) auto auto;gap:6px 8px;align-items:center;font-size:14px}
+.mods .sw{width:14px;height:14px}
+.cnt{display:inline-flex;align-items:center;gap:4px}
+.cnt b{min-width:26px;text-align:center;font-variant-numeric:tabular-nums}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.kv>div{background:#1f192b;border:2px solid var(--panel-lo);padding:6px 8px;display:flex;flex-direction:column;gap:2px}
+.kv .v{font-size:18px;font-weight:500}
+.kv .v.neg{color:var(--bad)}.kv .v.pos{color:var(--ok)}
+.warns{display:flex;flex-direction:column;gap:4px;margin:0;padding:0;list-style:none;font-size:14px}
+.warns li.err{color:var(--bad)}.warns li.warn{color:var(--warn)}
+.warns li::before{content:"■ "}
+#prof{display:block;width:100%;image-rendering:pixelated;background:#2b2240;border:2px solid var(--panel-lo)}
+.check{display:flex;gap:12px;flex-wrap:wrap}
+.check label{display:inline-flex;gap:6px;align-items:center;cursor:pointer;padding:4px 8px;background:#1f192b;border:2px solid var(--panel-lo)}
+.check input{accent-color:var(--amber);width:16px;height:16px}
+
+/* type: Silkscreen only at whole multiples of its 8px grid; everything small uses Pixelify Sans */
+.lbl{font-family:var(--f-ui);font-size:13px;font-weight:500;letter-spacing:.08em}
+.brand b{font-size:24px}
+.brand span{font-family:var(--f-ui);font-size:12px;font-weight:500;letter-spacing:.12em}
+.chip,.phase,.mat,.badge{font-family:var(--f-ui);font-weight:500;letter-spacing:.06em}
+.chip{font-size:12px}.phase{font-size:13px}.mat{font-size:11px}.badge{font-size:12px}
+.tab{font-family:var(--f-ui);font-size:14px;font-weight:500;letter-spacing:.06em;text-transform:uppercase}
+.modal h2{font-size:16px;letter-spacing:.04em}
+.title-screen h1{font-size:48px}
+/* fade to war */
+[hidden]{display:none!important}
+#fade{position:fixed;inset:0;z-index:90;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;opacity:0;transition:opacity 1.1s ease;cursor:pointer;padding:24px}
+#fade.on{opacity:1}
+#fade .fl{font-family:var(--f-label);font-size:16px;color:var(--paper);letter-spacing:.08em;text-align:center;animation:flin .6s steps(4) both}
+#fade .fl.dim{color:var(--muted)}
+#fade .fl.red{font-size:48px;color:var(--bad);animation:flin .2s steps(2) both,blink .7s steps(1) .2s infinite}
+@keyframes flin{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){#fade{transition-duration:.2s}#fade .fl,#fade .fl.red{animation:none}}
+
+/* readable type: Plex for everything people read; the pixel face only for big display text */
+:root{--f-ui:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;--f-label:'IBM Plex Sans Condensed','Arial Narrow',sans-serif;--f-mono:'IBM Plex Mono',ui-monospace,monospace;--f-pixel:'Silkscreen','Courier New',monospace}
+body{font-size:15px;line-height:1.45}
+.lbl{font-family:var(--f-label);font-size:12px;font-weight:600;letter-spacing:.07em}
+.brand b{font-family:var(--f-pixel);font-size:24px}
+.brand span{font-family:var(--f-label);font-size:12px;font-weight:600;letter-spacing:.1em}
+.chip,.phase,.badge,.mat,.tab{font-family:var(--f-label);font-weight:600;letter-spacing:.06em}
+.chip{font-size:12px}.phase{font-size:13px}.badge{font-size:12px}.mat{font-size:11px}.tab{font-size:13px}
+.big{font-family:var(--f-label);font-size:22px;font-weight:600}
+.stat strong{font-family:var(--f-label);font-weight:600}
+.clock,.kv .v{font-family:var(--f-label);font-weight:600}
+.btn{font-family:var(--f-ui);font-weight:500}
+.modal h2{font-family:var(--f-label);font-size:20px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.title-screen h1{font-family:var(--f-pixel);font-size:48px}
+.reader pre{font-family:var(--f-mono);font-size:14.5px;line-height:1.55}
+.mitem{font-size:14px}.mitem .s{font-weight:600}
+.tip{font-size:13.5px;line-height:1.4}
+#fade .fl{font-family:var(--f-mono);font-size:16px;font-weight:500}
+#fade .fl.red{font-family:var(--f-pixel);font-size:56px}
+@media (max-width:760px){.designer{grid-template-columns:1fr}#xsec{width:100%}.floor{grid-template-columns:30px 70px 1fr 80px}.floor .bays{display:none}}
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header class="bar px">
+    <div class="brand"><b>HARDLINE</b><span>REGION 7 SHELTER PROGRAM</span></div>
+    <span class="phase" id="phase">CONSTRUCTION</span>
+    <div class="stat" id="st1"><span class="lbl"></span><strong class="num"></strong></div>
+    <div class="stat" id="st2"><span class="lbl"></span><strong class="num"></strong></div>
+    <div class="stat" id="st3"><span class="lbl"></span><strong class="num"></strong></div>
+    <div class="stat" id="st4"><span class="lbl"></span><strong class="num"></strong></div>
+    <button class="btn" id="mailBtn" type="button">Mail<span class="badge" id="mailBadge" hidden></span></button>
+    <button class="btn primary" id="mainBtn" type="button">Commission ▸</button>
+  </header>
+  <div class="main">
+    <section class="mapcard px">
+      <div class="mapscroll"><canvas id="map" width="640" height="360" aria-label="Region map"></canvas></div>
+      <div class="maphint"><span id="hint"></span></div>
+      <div class="maphint" id="legend"></div>
+    </section>
+    <aside class="side">
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <div class="sidebody px" id="side"></div>
+    </aside>
+  </div>
+  <footer class="ticker px"><span class="lbl">Latest</span><div id="ticker"></div></footer>
+</div>
+<div id="modalRoot"></div>
+<div class="toast px" id="toast" hidden></div>
+<div class="tip px" id="tip" hidden></div>
+<div id="fade" hidden aria-live="assertive"></div>
+<script>
+(()=>{
+'use strict';
+/* ================= core ================= */
+const $=s=>document.querySelector(s);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const R0=v=>Math.round(v);
+const pad=(v,n)=>String(v).padStart(n);
+const num=n=>Math.round(n).toLocaleString('en-US');
+const money=n=>'$'+num(n);
+const mil=n=>(n<0?'−':'')+'$'+(Math.abs(n)/1e6).toFixed(2)+'M';
+const sgn=n=>(n>=0?'+':'−')+num(Math.abs(n));
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cap1=s=>s.charAt(0).toUpperCase()+s.slice(1).toLowerCase();
+const rnd=()=>Math.random();
+function mul(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const MW=160,MH=90,MPC=25,MAXSITES=6;
+const WAR=0,RELIEF=12;
+const UNIT={W:'L/shift',A:'CFM',P:'kW'},RNAME={W:'WATER',A:'AIR',P:'POWER'},LOSS={W:.98,A:.95,P:.97};
+const CFM_PER_PERSON=5,WATER_PER_PERSON=3,FOOD_PER_PERSON=.25;
+const COL={W:'#4a9be8',A:'#9df0e4',P:'#f2b33d',F:'#e8793c',FOOD:'#c9a46a'};
+const DIM={W:'#24456b',A:'#3a6560',P:'#6a5222'};
+const SITE_NAMES=['HOLLOW CREEK','IRON RIDGE','BLACKWATER','CEDAR FLATS','MERIDIAN','KESTREL'];
+const WARDENS=['R. OKAFOR','M. VARGA','D. BRANDT','J. LINDQVIST','A. RUIZ','E. HADDAD'];
+const TOWN_NAMES=['HARLAN','DUNMORE','ASHBY','CORVIN','PELL','MARROW','TESKE','OSWIN'];
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let G=null,WD=null,S=null;
+const UI={sel:null,selLink:null,tab:'site',modal:null,drag:null,pick:null,hover:null,hoverLink:null,hoverCell:null,N:null,geo:false,mouse:null};
+
+/* ================= world ================= */
+const idx=(x,y)=>y*MW+x;
+function makeNoise(seed){const r=mul(seed),P=new Float32Array(65536);for(let i=0;i<65536;i++)P[i]=r();const s=t=>t*t*(3-2*t);
+  return (x,y)=>{const xi=Math.floor(x),yi=Math.floor(y),u=s(x-xi),v=s(y-yi),h=(i,j)=>P[((i&255)<<8)|(j&255)];const a=h(xi,yi),b=h(xi+1,yi),c=h(xi,yi+1),d=h(xi+1,yi+1);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;};}
+function fbm(n,x,y,o){let s=0,a=1,f=1,t=0;for(let i=0;i<o;i++){s+=a*n(x*f+i*17.3,y*f+i*9.1);t+=a;a*=.5;f*=2;}return s/t;}
+class Heap{constructor(){this.a=[];}get size(){return this.a.length;}
+  push(k,v){const a=this.a;a.push([k,v]);let i=a.length-1;while(i>0){const p=(i-1)>>1;if(a[p][0]<=a[i][0])break;[a[p],a[i]]=[a[i],a[p]];i=p;}}
+  pop(){const a=this.a,top=a[0],last=a.pop();if(a.length){a[0]=last;let i=0;for(;;){const l=2*i+1,r=l+1;let m=i;if(l<a.length&&a[l][0]<a[m][0])m=l;if(r<a.length&&a[r][0]<a[m][0])m=r;if(m===i)break;[a[m],a[i]]=[a[i],a[m]];i=m;}}return top;}}
+const D4=[[1,0],[-1,0],[0,1],[0,-1]];
+const cellCost=i=>[14,1,2.2,3.5][WD.type[i]];
+function dijkstra(start,isTarget){
+  const N=MW*MH,dist=new Float64Array(N).fill(1e9),prev=new Int32Array(N).fill(-1),h=new Heap();dist[start]=0;h.push(0,start);
+  while(h.size){const [d,i]=h.pop();if(d>dist[i])continue;
+    if(i!==start&&isTarget(i)){const p=[];for(let k=i;k!==-1;k=prev[k])p.push(k);return p.reverse();}
+    const x=i%MW,y=(i/MW)|0;
+    for(const [dx,dy] of D4){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=MW||ny>=MH)continue;const j=idx(nx,ny);const nd=d+(WD.road[j]?.35:cellCost(j));if(nd<dist[j]){dist[j]=nd;prev[j]=i;h.push(nd,j);}}}
+  return [start];
+}
+function genWorld(seed){
+  const r=mul(seed),n1=makeNoise(seed+11),n2=makeNoise(seed+23),n3=makeNoise(seed+37);
+  const N=MW*MH,elev=new Float32Array(N),moist=new Float32Array(N),sn=new Float32Array(N),sand=new Float32Array(N),type=new Uint8Array(N);
+  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const i=idx(x,y);elev[i]=fbm(n1,x/34,y/34,4);moist[i]=fbm(n2,x/20,y/20,3);sn[i]=fbm(n3,x/26,y/26,3);}
+  const se=Array.from(elev).sort((a,b)=>a-b),wl=se[Math.floor(N*.14)],hl=se[Math.floor(N*.86)],emax=se[N-1];
+  const ss=Array.from(sn).sort((a,b)=>a-b),s0=ss[Math.floor(N*.04)],s1=ss[Math.floor(N*.96)];
+  for(let i=0;i<N;i++){const e=elev[i];type[i]=e<wl?0:e>hl?3:moist[i]>.56?2:1;
+    let m=3+clamp((sn[i]-s0)/(s1-s0),0,1)*37;if(e>hl)m-=(e-hl)/(emax-hl)*34;sand[i]=type[i]===0?0:clamp(m,0,42);}
+  const names=TOWN_NAMES.slice().sort(()=>r()-.5),towns=[];
+  for(let k=0;k<6000&&towns.length<4;k++){const x=9+Math.floor(r()*(MW-18)),y=9+Math.floor(r()*(MH-18)),i=idx(x,y);
+    if(type[i]===0||type[i]===3)continue;if(towns.some(t=>Math.hypot(t.x-x,t.y-y)<40))continue;
+    towns.push({x,y,name:names[towns.length],pop:(3+Math.floor(r()*6))*100});}
+  let cc=null;
+  for(let rad=0;rad<70&&!cc;rad++)for(let dy=-rad;dy<=rad&&!cc;dy++)for(let dx=-rad;dx<=rad&&!cc;dx++){if(Math.max(Math.abs(dx),Math.abs(dy))!==rad)continue;
+    const x=80+dx,y=45+dy;if(x<10||y<10||x>MW-11||y>MH-11)continue;const i=idx(x,y);if(type[i]===0||type[i]===3)continue;if(towns.some(t=>Math.hypot(t.x-x,t.y-y)<14))continue;cc={x,y};}
+  WD={seed,elev,sand,type,towns,cc,wl,hl,road:new Uint8Array(N),base:null};
+  WD.road[idx(cc.x,cc.y)]=1;
+  const order=towns.slice().sort((a,b)=>Math.hypot(a.x-cc.x,a.y-cc.y)-Math.hypot(b.x-cc.x,b.y-cc.y));
+  for(const t of order)dijkstra(idx(t.x,t.y),i=>WD.road[i]===1).forEach(i=>WD.road[i]=1);
+  const far=order[order.length-1];
+  dijkstra(idx(far.x,far.y),i=>{const x=i%MW,y=(i/MW)|0;return x===0||y===0||x===MW-1||y===MH-1;}).forEach(i=>WD.road[i]=1);
+  WD.base=WD.road.slice();
+  renderTerrain();recomputeRoads();
+}
+const sandAt=(x,y)=>WD.sand[idx(clamp(Math.round(x),0,MW-1),clamp(Math.round(y),0,MH-1))];
+const TYPE_NAME=['Water','Grassland','Forest','Hills'];
+function nearestTown(x,y){let best=null,bd=1e9;for(const t of WD.towns){const d=Math.hypot(t.x-x,t.y-y);if(d<bd){bd=d;best=t;}}return [best,bd];}
+
+/* ---------------- terrain render ---------------- */
+let TER=null,GEO=null,ROADS=null;
+function renderTerrain(){
+  const r=mul(WD.seed+99);
+  TER=document.createElement('canvas');TER.width=640;TER.height=360;const t=TER.getContext('2d');
+  GEO=document.createElement('canvas');GEO.width=640;GEO.height=360;const g2=GEO.getContext('2d');
+  const P=(c,x,y,w,h,col)=>{c.fillStyle=col;c.fillRect(x,y,w,h);};
+  const grass=['#4d7a3c','#52803f','#497537'];
+  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const i=idx(x,y),ty=WD.type[i],px=x*4,py=y*4,e=WD.elev[i];
+    if(ty===0){P(t,px,py,4,4,'#2c5b97');const shore=D4.some(([dx,dy])=>{const nx=x+dx,ny=y+dy;return nx>=0&&ny>=0&&nx<MW&&ny<MH&&WD.type[idx(nx,ny)]!==0;});
+      if(shore)P(t,px,py,4,4,'#36689f');if(r()<.12)P(t,px+((r()*3)|0),py+((r()*4)|0),2,1,'#5a8fcc');}
+    else if(ty===1){P(t,px,py,4,4,grass[(r()*3)|0]);if(r()<.06)P(t,px+((r()*4)|0),py+((r()*4)|0),1,1,'#7aa556');}
+    else if(ty===2){P(t,px,py,4,4,'#2f5530');P(t,px+((r()*2)|0),py,3,2,'#3f6e3a');P(t,px+1,py+2,1,2,'#1f3b23');}
+    else{const band=Math.floor((e-WD.hl)*60)%2;P(t,px,py,4,4,band?'#7b6d4c':'#857655');if(WD.sand[i]<5&&r()<.5)P(t,px+((r()*3)|0),py+((r()*3)|0),2,2,'#9a9284');}
+    // geology
+    const sd=WD.sand[i];
+    if(ty===0)P(g2,px,py,4,4,'#1d3352');
+    else{const k=sd/42,c=sd<2?'#6a6874':`rgb(${R0(120+k*120)},${R0(118+k*96)},${R0(126-k*40)})`;P(g2,px,py,4,4,c);
+      const b=Math.floor(sd/10);for(const [dx,dy] of [[1,0],[0,1]]){const nx=x+dx,ny=y+dy;if(nx<MW&&ny<MH&&WD.type[idx(nx,ny)]!==0&&Math.floor(WD.sand[idx(nx,ny)]/10)!==b)P(g2,dx?px+3:px,dy?py+3:py,dx?1:4,dy?1:4,'#3b3346');}}
+  }
+  for(const tw of WD.towns){const rr=mul(tw.x*131+tw.y);for(let k=0;k<14;k++){const hx=tw.x*4+R0((rr()-.5)*22),hy=tw.y*4+R0((rr()-.5)*16);
+    for(const c of [t,g2]){P(c,hx,hy,4,3,'#d8c6a0');P(c,hx,hy,4,1,'#a2483a');P(c,hx+1,hy+2,1,1,'#3b2f2a');}}}
+}
+function renderRoads(){
+  ROADS=document.createElement('canvas');ROADS.width=640;ROADS.height=360;const c=ROADS.getContext('2d');
+  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const i=idx(x,y);if(!WD.road[i])continue;const px=x*4,py=y*4;
+    c.fillStyle=WD.type[i]===0?'#6e5c45':'#5e594f';c.fillRect(px,py,4,4);}
+  c.fillStyle='#a39c8c';
+  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const i=idx(x,y);if(!WD.road[i])continue;const px=x*4,py=y*4;c.fillRect(px+1,py+1,2,2);
+    if(x+1<MW&&WD.road[idx(x+1,y)])c.fillRect(px+2,py+1,4,2);if(y+1<MH&&WD.road[idx(x,y+1)])c.fillRect(px+1,py+2,2,4);}
+}
+
+/* ================= construction model ================= */
+const MODS={
+  BUNK:{name:'Living quarters',cost:4000,color:'#e8c48a',desc:'8 beds in triple bunks'},
+  STORE:{name:'Storage',cost:6000,color:'#a0805a',desc:'1,500 person-days of food, filters and parts'},
+  AIR:{name:'Air scrubbers',cost:35000,color:'#9df0e4',desc:'700 CFM, enough for 140 people · 7 kW'},
+  WATER:{name:'Water tank',cost:14000,color:'#4a9be8',desc:'8,000 L'},
+  FILTER:{name:'Water filtration',cost:30000,color:'#2fb8c9',desc:'recycles 600 L a shift at half recovery · 6 kW'},
+  FUEL:{name:'Fuel tank',cost:12000,color:'#e8793c',desc:'2,000 L diesel'},
+  GEN:{name:'Generator',cost:45000,color:'#f2b33d',desc:'60 kW diesel genset'},
+};
+const MOD_ORDER=['BUNK','STORE','AIR','WATER','FILTER','FUEL','GEN'];
+const DIAMS=[8,10,12,14,16,18,20];
+const MAXFLOORS=20;
+const baysFor=d=>Math.max(0,Math.floor((Math.PI*d*d/4-10)/10));
+const floorTop=i=>4+4*i;
+const shaftDepth=s=>s.id==='CC'?40:4+4*s.floors.length;
+const COST={sandDig:60,rockDig:300,sandLine:450,rockLine:60,road:{0:48000,1:8000,2:12000,3:16000},tunSand:250,tunRock:520,conduit:60,portal:40000};
+function sectionCost(d,top,sand){
+  const hs=clamp(sand-top,0,4),hr=4-hs,area=Math.PI*d*d/4,per=Math.PI*d;
+  const dig=area*(hs*COST.sandDig+hr*COST.rockDig),line=per*(hs*COST.sandLine+hr*COST.rockLine);
+  return {dig:dig*(1+(top+2)/60),line:line*(1+(top+2)/60),hs,hr};
+}
+function siteSand(s){return s.id==='CC'?6:sandAt(s.x,s.y);}
+function rosterFor(s,beds){let p=0;for(const t of WD.towns){const d=Math.hypot(t.x-s.x,t.y-s.y);p+=t.pop*Math.max(0,1-d/50);}
+  const fill=clamp(.72+p/1400,.72,1.14);return {roster:R0(beds*fill),fill};}
+function siteStats(s){
+  const sand=siteSand(s),depth=shaftDepth(s);
+  let bays=0,dig=0,line=0,sandM=0,rockM=0;
+  const hc=sectionCost(s.d0,0,sand);dig+=hc.dig;line+=hc.line;
+  s.floors.forEach((d,i)=>{bays+=baysFor(d);const c=sectionCost(d,floorTop(i),sand);dig+=c.dig;line+=c.line;sandM+=c.hs;rockM+=c.hr;});
+  sandM+=hc.hs;rockM+=hc.hr;
+  const m=s.mods,used=MOD_ORDER.reduce((a,k)=>a+m[k],0);
+  const fit=MOD_ORDER.reduce((a,k)=>a+m[k]*MODS[k].cost,0),head=200000+s.d0*10000;
+  const beds=m.BUNK*8,{roster,fill}=rosterFor(s,beds);
+  const prot=clamp((rockM*1.4+sandM*.45)/70,0,.9);
+  const load=15+.06*(roster+12)+m.AIR*7+4+m.FILTER*6,gcap=m.GEN*60;
+  const people=roster+12,use=people*WATER_PER_PERSON,rec=Math.min(use,m.FILTER*600)*.5;
+  const wcap=m.WATER*8000,fcap=m.FUEL*2000,food=m.STORE*1500;
+  const burn=2*Math.min(load,gcap);
+  const stock=wcap*.12+fcap*1.1+food*.8;
+  return {sand,depth,bays,used,dig,line,fit,head,road:s.roadCost||0,stock,total:dig+line+fit+head+stock+(s.roadCost||0),beds,roster,fill,prot,
+    scrub:m.AIR*700,need:people*CFM_PER_PERSON,load,gcap,use,rec,wcap,fcap,food,
+    waterSh:(use-rec)>0?wcap/(use-rec):99,fuelSh:burn?fcap/burn:0,foodSh:people?food/(people*FOOD_PER_PERSON):0,sandM,rockM};
+}
+function tunnelStats(t){
+  const A=siteById(t.a),B=siteById(t.b),dx=B.x-A.x,dy=B.y-A.y,cells=Math.hypot(dx,dy),len=cells*MPC;
+  const n=Math.max(2,Math.ceil(cells*2));let inSand=0;const prof=[];
+  for(let k=0;k<=n;k++){const sd=sandAt(A.x+dx*k/n,A.y+dy*k/n);prof.push(sd);if(t.depth<=sd)inSand++;}
+  const sandFrac=inSand/(n+1),rockFrac=1-sandFrac;
+  const per=(sandFrac*COST.tunSand+rockFrac*COST.tunRock)*(1+t.depth/100)+(t.W+t.A+t.P)*COST.conduit;
+  const cost=len*per+2*COST.portal;
+  const rel=clamp(.3+rockFrac*.45+t.depth/150,.2,.97);
+  return {len,cost,rockFrac,sandFrac,rel,prof,maxDepth:Math.min(shaftDepth(A),shaftDepth(B))};
+}
+function siteById(id){return id==='CC'?{id:'CC',x:WD.cc.x,y:WD.cc.y,name:'SHELTER CONTROL',floors:[],d0:10}:G.build.sites.find(s=>s.id===id);}
+function suggestMods(s,target){
+  const m={BUNK:0,STORE:0,AIR:0,WATER:0,FILTER:0,FUEL:0,GEN:0};
+  const bays=s.floors.reduce((a,d)=>a+baysFor(d),0);if(!bays)return m;
+  for(let beds=Math.max(8,(target||9999));beds>=8;beds-=8){
+    m.BUNK=Math.ceil(beds/8);const {roster}=rosterFor(s,m.BUNK*8),p=roster+12;
+    m.AIR=Math.ceil(p*CFM_PER_PERSON*1.08/700);m.FILTER=Math.max(1,Math.round(p*WATER_PER_PERSON/600/2));
+    m.WATER=Math.ceil(p*WATER_PER_PERSON*.6*14/8000);m.STORE=Math.ceil(p*FOOD_PER_PERSON*14/1500);
+    const load=15+.06*p+m.AIR*7+4+m.FILTER*6;m.GEN=Math.ceil(load*1.15/60);m.FUEL=Math.ceil(2*load*12/2000);
+    const used=MOD_ORDER.reduce((a,k)=>a+m[k],0);if(used<=bays)return m;
+    if(target)target=0;
+  }
+  return m;
+}
+function recomputeRoads(){
+  WD.road=WD.base.slice();
+  if(G)for(const s of G.build.sites){const p=dijkstra(idx(s.x,s.y),i=>WD.road[i]===1);let c=0;
+    p.forEach((i,k)=>{if(k<p.length-1)c+=COST.road[WD.type[i]];WD.road[i]=1;});s.roadCost=c;s.roadCells=p.length-1;}
+  renderRoads();
+}
+function placeOk(x,y,ignore){
+  if(x<7||y<9||x>MW-8||y>MH-9)return 'Too close to the edge of the survey area.';
+  const i=idx(x,y);if(WD.type[i]===0)return 'You cannot sink a shaft in a lake.';
+  for(const t of WD.towns)if(Math.hypot(t.x-x,t.y-y)<5)return `That is inside ${cap1(t.name)}.`;
+  const others=[{x:WD.cc.x,y:WD.cc.y,id:'CC'},...G.build.sites.filter(s=>s.id!==ignore)];
+  for(const o of others)if(Math.hypot(o.x-x,o.y-y)<17)return `Too close to ${o.id}. Shelters need about 400 m between them.`;
+  return null;
+}
+function buildTotals(){let sites=0,tun=0;for(const s of G.build.sites)sites+=siteStats(s).total;for(const t of G.build.tunnels)tun+=tunnelStats(t).cost;return {sites,tun,total:sites+tun,left:G.build.budget-sites-tun};}
+function clampTunnels(){for(const t of G.build.tunnels){const mx=tunnelStats(t).maxDepth;if(t.depth>mx)t.depth=Math.max(8,mx-(mx%4));}}
+function siteWarnings(s){const st=siteStats(s),w=[];
+  if(st.used>st.bays)w.push(['err',`${s.id}: ${st.used} modules need ${st.used-st.bays} more bays than the shaft has.`]);
+  if(!s.mods.BUNK)w.push(['err',`${s.id}: no living quarters.`]);
+  if(!s.mods.GEN)w.push(['err',`${s.id}: no generator. Nothing runs when the grid fails.`]);
+  else if(st.gcap<st.load)w.push(['warn',`${s.id}: generators give ${st.gcap} kW for a ${R0(st.load)} kW load.`]);
+  if(st.scrub<st.need)w.push(['warn',`${s.id}: scrubbers cover ${R0(st.scrub/st.need*100)}% of the air ${st.roster+12} people need.`]);
+  if(!s.mods.FUEL)w.push(['warn',`${s.id}: no fuel tank.`]);
+  if(!s.mods.WATER)w.push(['warn',`${s.id}: no water tank.`]);
+  if(!s.mods.FILTER)w.push(['warn',`${s.id}: no water filtration; nothing is recycled.`]);
+  if(!s.mods.STORE)w.push(['warn',`${s.id}: no storage; no food or spare parts on site.`]);
+  if(!G.build.tunnels.some(t=>t.a===s.id||t.b===s.id))w.push(['warn',`${s.id}: no tunnel. It will be on its own.`]);
+  return w;}
+function allWarnings(){const w=[];if(!G.build.sites.length)w.push(['err','Place at least one shelter.']);
+  for(const s of G.build.sites)w.push(...siteWarnings(s));
+  const b=buildTotals();if(b.left<0)w.unshift(['err',`Over budget by ${mil(-b.left)}.`]);return w;}
+function newSite(x,y){
+  const n=G.build.sites.length,used=new Set(G.build.sites.map(s=>s.slot));let slot=0;while(used.has(slot))slot++;
+  const s={id:'S'+(slot+1),slot,x,y,name:SITE_NAMES[slot],warden:WARDENS[slot],d0:12,floors:Array(6).fill(12),mods:null,roadCost:0};
+  const sand=sandAt(x,y);if(sand>20){s.d0=14;s.floors=Array(4).fill(14).concat([12,12]);}
+  s.mods=suggestMods(s,260);return s;
+}
+
+/* ================= shared UI helpers ================= */
+/* All canvases draw in logical pixels; TG.k maps them onto real device pixels so blocks stay square and text stays sharp. */
+const cv=$('#map'),g=cv.getContext('2d');
+let TG={c:g,k:1,w:640,h:360};
+function fitCanvas(c,lw,lh){const r=c.getBoundingClientRect(),dpr=window.devicePixelRatio||1;let k=Math.max(1,r.width*dpr/lw);
+  const W=Math.round(lw*k),H=Math.round(lh*k);if(c.width!==W||c.height!==H){c.width=W;c.height=H;}const x=c.getContext('2d');x.imageSmoothingEnabled=false;return {c:x,k:W/lw,w:lw,h:lh};}
+function fitMap(){TG=fitCanvas(cv,640,360);}
+function useTarget(t){const prev=TG;TG=t;return prev;}
+const F=(x,y,w,h,col)=>{const k=TG.k,X=Math.round(x*k),Y=Math.round(y*k);TG.c.fillStyle=col;TG.c.fillRect(X,Y,Math.max(1,Math.round((x+w)*k)-X),Math.max(1,Math.round((y+h)*k)-Y));};
+function blit(img,alpha=1){const c=TG.c;c.globalAlpha=alpha;c.drawImage(img,0,0,TG.c.canvas.width,TG.c.canvas.height);c.globalAlpha=1;}
+function txt(s,x,y,col,align='left'){const c=TG.c,k=TG.k;c.font=`600 ${Math.max(10,Math.round(9.5*k))}px 'IBM Plex Sans Condensed','Arial Narrow',sans-serif`;c.textBaseline='top';c.textAlign=align;c.fillStyle=col;c.fillText(s,Math.round(x*k),Math.round(y*k));}
+function txtS(s,x,y,c,align='left'){txt(s,x+1,y+1,'#0f0b15',align);txt(s,x,y,c,align);}
+let AC=null,SOUND=true;
+function tone(f,d,v=.03,type='square',when=0){if(!SOUND)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+  const o=AC.createOscillator(),gn=AC.createGain(),t=AC.currentTime+when;o.type=type;o.frequency.value=f;gn.gain.setValueAtTime(v,t);gn.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(gn);gn.connect(AC.destination);o.start(t);o.stop(t+d+.03);}catch(e){}}
+const chime=()=>{tone(880,.1,.035);tone(1320,.14,.035,'square',.11);};
+const buzz=()=>tone(140,.16,.045,'sawtooth');
+const blip=()=>tone(1200,.035,.025);
+const thud=()=>{tone(90,.2,.06,'triangle');tone(60,.3,.05,'triangle',.05);};
+const alarm=()=>{for(let i=0;i<6;i++)tone(i%2?620:880,.22,.045,'square',i*.25);};
+addEventListener('pointerdown',()=>{try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();}catch(e){}});
+let toastT=0;
+function toast(t,err){const el=$('#toast');el.textContent=t;el.className='toast px'+(err?' err':'');el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,err?6000:4500);}
+function act(res){const [ok,msg]=res;toast(msg,!ok);ok?blip():buzz();refresh();return ok;}
+function modal(html,wide){$('#modalRoot').innerHTML=`<div class="veil" id="veil"><div class="modal px" role="dialog" aria-modal="true" style="${wide?`width:min(${wide}px,100%)`:''}">${html}</div></div>`;
+  $('#veil').addEventListener('click',e=>{if(e.target.id==='veil'&&UI.modal&&!['boot','end','title'].includes(UI.modal.type))closeModal();});}
+function closeModal(){UI.modal=null;$('#modalRoot').innerHTML='';refresh();}
+const meter=(v,max,c,mark)=>`<div class="meter"><i style="width:${clamp(max?v/max:0,0,1)*100}%;--c:${c}"></i>${mark!=null?`<b style="left:${mark}%"></b>`:''}</div>`;
+const L_=(a,b,cls='')=>`<span>${a}</span><span class="num ${cls}">${b}</span>`;
+function toMap(e){const r=cv.getBoundingClientRect();return [(e.clientX-r.left)*640/r.width,(e.clientY-r.top)*360/r.height];}
+function placeTip(e,html){const tip=$('#tip');if(!html){tip.hidden=true;return;}tip.hidden=false;tip.innerHTML=html;
+  const w=tip.offsetWidth,h=tip.offsetHeight;let x=e.clientX+16,y=e.clientY+16;if(x+w>innerWidth-8)x=e.clientX-w-12;if(y+h>innerHeight-8)y=e.clientY-h-12;tip.style.left=x+'px';tip.style.top=y+'px';}
+function lineThick(ax,ay,bx,by,w,c){const dx=bx-ax,dy=by-ay,n=Math.max(1,Math.ceil(Math.max(Math.abs(dx),Math.abs(dy))));
+  for(let k=0;k<=n;k++)F(Math.round(ax+dx*k/n-w/2),Math.round(ay+dy*k/n-w/2),w,w,c);}
+const sitePx=s=>[s.x*4+2,s.y*4+2];
+
+/* ================= build: map ================= */
+function headframe(px,py,sel,col='#8b8c99'){
+  if(sel){F(px-9,py-14,19,22,'#f2b33d');F(px-8,py-13,17,20,'#1b162480');}
+  F(px-6,py+2,13,4,'#0f0b15');F(px-5,py+2,11,3,col);
+  F(px-4,py-9,1,11,'#5d5e6b');F(px+4,py-9,1,11,'#5d5e6b');F(px-4,py-5,9,1,'#5d5e6b');F(px-4,py-1,9,1,'#5d5e6b');
+  F(px-2,py-11,5,3,'#c9c9d6');F(px-1,py-10,3,1,'#5d5e6b');
+}
+function drawBuild(t){
+  blit(UI.geo?GEO:TER);blit(ROADS);
+  for(const tw of WD.towns){txtS(tw.name,tw.x*4,tw.y*4+12,'#efe6cf','center');txtS(`${tw.pop} PEOPLE`,tw.x*4,tw.y*4+21,'#c9bfa6','center');}
+  // tunnels
+  G.build.tunnels.forEach((tn,i)=>{const A=siteById(tn.a),B=siteById(tn.b),[ax,ay]=sitePx(A),[bx,by]=sitePx(B),ts=tunnelStats(tn);
+    if(UI.selLink===i)lineThick(ax,ay,bx,by,9,'#f2b33d');
+    lineThick(ax,ay,bx,by,7,'#120e19');
+    const dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy),nx=-dy/L,ny=dx/L;
+    for(const [k,o] of [['W',-2],['A',0],['P',2]])if(tn[k])lineThick(ax+nx*o,ay+ny*o,bx+nx*o,by+ny*o,1,COL[k]);
+    const mx=(ax+bx)/2,my=(ay+by)/2;F(mx-16,my-6,32,11,'#0f0b15');F(mx-15,my-5,30,9,'#272033');txt(`${R0(ts.rel*100)}%`,mx,my-4,ts.rel<.5?'#ec4b3f':ts.rel<.75?'#f2b33d':'#77d65b','center');
+  });
+  // control
+  const [cx_,cy_]=sitePx(siteById('CC'));
+  F(cx_-8,cy_-3,17,7,'#0f0b15');F(cx_-7,cy_-2,15,5,'#9a9aa6');F(cx_-4,cy_-5,9,3,'#9a9aa6');F(cx_,cy_-12,1,7,'#c9c9d6');F(cx_-1,cy_-13,3,1,'#ec4b3f');
+  if(UI.sel==='CC')F(cx_-10,cy_+6,21,1,'#f2b33d');
+  txtS('CC CONTROL',cx_,cy_+8,'#f2b33d','center');
+  // sites
+  for(const s of G.build.sites){const [px,py]=sitePx(s),w=siteWarnings(s);
+    headframe(px,py,UI.sel===s.id);
+    txtS(`${s.id} ${s.name}`,px,py+8,UI.sel===s.id?'#f2b33d':'#efe6cf','center');
+    if(w.some(x=>x[0]==='err')){F(px+6,py-14,7,8,'#0f0b15');F(px+7,py-13,5,6,(t/400|0)%2&&!reduced?'#ec4b3f':'#f2b33d');txt('!',px+9,py-13,'#0f0b15','center');}}
+  // drag/move/ghost
+  const d=UI.drag,h=UI.hoverCell;
+  if(UI.pick&&UI.mouse){const A=siteById(UI.pick),[ax,ay]=sitePx(A);const [mx,my]=UI.mouse;const L=Math.hypot(mx-ax,my-ay),ph=reduced?0:(t*.03)%6;
+    for(let s=ph;s<L;s+=6){const x=ax+(mx-ax)*s/L,y=ay+(my-ay)*s/L;F(x-1,y-1,3,3,'#0f0b15');F(x,y,2,2,'#f2b33d');}}
+  else if(d&&d.moved&&d.site){const bad=placeOk(d.cx,d.cy,d.site);headframe(d.cx*4+2,d.cy*4+2,false,bad?'#ec4b3f':'#77d65b');}
+  else if(h&&!UI.hover&&!UI.modal&&G.build.sites.length<MAXSITES){const bad=placeOk(h[0],h[1]);
+    if(!bad&&!reduced?(t/500|0)%2:!bad){TG.c.globalAlpha=.55;headframe(h[0]*4+2,h[1]*4+2,false,'#77d65b');TG.c.globalAlpha=1;}}
+  txtS(UI.geo?'GEOLOGY: SAND DEPTH  (YELLOW = DEEP SAND, GREY = ROCK AT SURFACE)':'REGION 7 SURVEY  -  1 SQUARE = 25 M',6,349,'#efe6cf');
+}
+function buildNodeAt(x,y){for(const s of G.build.sites){const [px,py]=sitePx(s);if(Math.abs(x-px)<=8&&y>=py-14&&y<=py+8)return s.id;}
+  const [cx_,cy_]=sitePx(siteById('CC'));if(Math.abs(x-cx_)<=9&&Math.abs(y-cy_)<=8)return 'CC';return null;}
+function buildLinkAt(x,y){let best=null,bd=6;G.build.tunnels.forEach((tn,i)=>{const [ax,ay]=sitePx(siteById(tn.a)),[bx,by]=sitePx(siteById(tn.b));
+  const dx=bx-ax,dy=by-ay,L2=dx*dx+dy*dy,u=clamp(((x-ax)*dx+(y-ay)*dy)/L2,0,1),d=Math.hypot(ax+dx*u-x,ay+dy*u-y);if(d<bd){bd=d;best=i;}});return best;}
+function buildDown(x,y){const id=buildNodeAt(x,y);UI.drag={site:id&&id!=='CC'?id:null,node:id,sx:x,sy:y,moved:false,cx:0,cy:0};}
+function buildMove(e,x,y){
+  const d=UI.drag;if(d&&d.site&&Math.hypot(x-d.sx,y-d.sy)>5){d.moved=true;d.cx=clamp(Math.floor(x/4),0,MW-1);d.cy=clamp(Math.floor(y/4),0,MH-1);}
+  UI.hover=buildNodeAt(x,y);UI.hoverLink=UI.hover?null:buildLinkAt(x,y);
+  const cx=clamp(Math.floor(x/4),0,MW-1),cy=clamp(Math.floor(y/4),0,MH-1);UI.hoverCell=[cx,cy];
+  cv.style.cursor=UI.hover?(UI.pick?'copy':'grab'):UI.pick?'crosshair':'pointer';
+  let h;
+  if(UI.hover){const s=siteById(UI.hover);if(UI.hover==='CC')h=`<b>CC Shelter Control</b><br>The old wing command post, 40 m down in rock. Already built.`;
+    else{const st=siteStats(s);h=`<b>${s.id} ${esc(s.name)}</b><br>${st.beds} beds · ${st.depth} m deep · ${mil(st.total)}<br><span class="dim">Click to select · drag to move</span>`;}}
+  else if(UI.hoverLink!=null){const tn=G.build.tunnels[UI.hoverLink],ts=tunnelStats(tn);h=`<b>${tn.a}–${tn.b} tunnel</b><br>${num(ts.len)} m at ${tn.depth} m deep · ${R0(ts.rockFrac*100)}% in rock<br>Reliability ${R0(ts.rel*100)}% · ${mil(ts.cost)}`;}
+  else{const i=idx(cx,cy),sd=WD.sand[i],[tw,dist]=nearestTown(cx,cy);
+    h=`<b>${TYPE_NAME[WD.type[i]]}</b>${WD.type[i]?`<br>Sand ${R0(sd)} m, then rock`:''}<br>${num(dist*MPC)} m from ${cap1(tw.name)}`;
+    const bad=WD.type[i]===0?null:placeOk(cx,cy);
+    if(UI.pick)h+='<br><span class="dim">Click a shelter to tunnel to</span>';
+    else if(G.build.sites.length<MAXSITES&&WD.type[i])h+=bad?`<br><span class="neg">${bad}</span>`:'<br><span class="pos">Click to place a shelter here</span>';}
+  placeTip(e,h);
+}
+function buildUp(x,y){const d=UI.drag;UI.drag=null;if(!d)return;
+  if(d.moved&&d.site){const bad=placeOk(d.cx,d.cy,d.site);if(bad){toast(bad,true);buzz();return;}const s=siteById(d.site);s.x=d.cx;s.y=d.cy;recomputeRoads();clampTunnels();thud();refresh();return;}
+  const id=buildNodeAt(x,y);
+  if(UI.pick){if(id&&id!==UI.pick){const a=UI.pick;setPick(null);openTunnel(a,id);}else if(!id)setPick(null);return;}
+  if(id){UI.sel=id;UI.selLink=null;UI.tab='site';blip();refresh();return;}
+  const li=buildLinkAt(x,y);if(li!=null){UI.selLink=li;UI.tab='tunnels';blip();refresh();return;}
+  const cx=clamp(Math.floor(x/4),0,MW-1),cy=clamp(Math.floor(y/4),0,MH-1);
+  if(G.build.sites.length>=MAXSITES){toast(`The program funds at most ${MAXSITES} shelters.`,true);buzz();return;}
+  const bad=placeOk(cx,cy);if(bad){toast(bad,true);buzz();return;}
+  const s=newSite(cx,cy);G.build.sites.push(s);G.build.sites.sort((a,b)=>a.slot-b.slot);recomputeRoads();UI.sel=s.id;UI.tab='site';thud();
+  toast(`${s.id} ${cap1(s.name)} placed. Sand here is ${R0(sandAt(cx,cy))} m deep. Open the designer to shape the shaft.`);refresh();
+}
+function setPick(id){UI.pick=id;renderHint();}
+function renderHint(){const h=$('#hint');
+  if(G.phase==='build'){if(UI.pick){h.textContent=`Click the shelter to tunnel to from ${UI.pick}. Esc cancels.`;h.className='pick';}
+    else{h.textContent=G.build.sites.length<MAXSITES?'Click open ground to place a shelter. Drag a shelter to move it. Roads are laid automatically.':'All six shelters placed. Select one to design it or dig tunnels.';h.className='';}
+    $('#legend').innerHTML=`<button class="btn small" id="geoBtn" type="button">${UI.geo?'Show terrain':'Show geology (sand depth)'}</button><span class="dim">Sand is cheap to dig but needs heavy lining and gives weak protection. Rock costs more to blast but holds.</span>`;
+    $('#geoBtn').onclick=()=>{UI.geo=!UI.geo;renderHint();};}
+  else{if(UI.pick){h.textContent=`Click the shelter that should receive from ${UI.pick}. Esc cancels.`;h.className='pick';}
+    else{h.textContent='Drag from one shelter to another to send water, air or power. Click a tunnel for its load.';h.className='';}
+    $('#legend').innerHTML=`<span class="key"><i class="sw" style="background:var(--water)"></i>Water</span><span class="key"><i class="sw" style="background:var(--air)"></i>Air</span><span class="key"><i class="sw" style="background:var(--amber)"></i>Power</span><span class="key"><i class="sw" style="background:var(--fuel)"></i>Fuel</span><span class="dim">Gauges: air · water · power · fuel. Moving dots are active flows.</span>`;}
+}
+
+/* ================= build: panels ================= */
+function buildTabs(){return [['site','Shelter'],['tunnels','Tunnels'],['plan','Budget']];}
+function buildSide(){
+  if(UI.tab==='tunnels')return tunnelsPanel();
+  if(UI.tab==='plan')return planPanel();
+  if(!UI.sel||!siteById(UI.sel))return `<div class="sect"><span class="big">Choose sites</span><p>Click open ground on the map to place up to six shelters. Each one gets a road to the nearest highway automatically.</p>
+    <p class="dim">Hover the map to see what is under it. Shallow sand is cheap to dig but needs a concrete lining and gives poor blast protection. Rock is expensive to blast and strong. Shelters near towns fill up fast; remote ones fill slowly.</p>
+    <p class="dim">Shelter Control (CC) already exists in the old command post, 40 m down in rock. Tunnel your shelters to it and to each other.</p></div>${planSummary()}`;
+  if(UI.sel==='CC')return `<div class="sect"><span class="big">CC Shelter Control</span><div class="dim">The old wing command post. 40 m deep in rock, 80 beds, a 200 kW generator plant and a 40,000 L cistern. Already built.</div>
+    <div class="actions"><button class="btn" data-act="tunnel" type="button">Dig a tunnel from here…</button></div></div>`;
+  const s=siteById(UI.sel),st=siteStats(s),w=siteWarnings(s),[tw,td]=nearestTown(s.x,s.y);
+  return `<div class="sect"><div class="row"><span class="big">${s.id} ${esc(s.name)}</span><span class="chip ${w.some(x=>x[0]==='err')?'CRIT':w.length?'WARN':'OK'}">${w.some(x=>x[0]==='err')?'INCOMPLETE':w.length?'CHECK':'READY'}</span></div>
+    <div class="dim">${TYPE_NAME[WD.type[idx(s.x,s.y)]]} · ${num(td*MPC)} m from ${cap1(tw.name)} · warden ${esc(s.warden)}</div>
+    <div class="actions"><button class="btn primary" data-act="design" type="button">Design silo…</button><button class="btn" data-act="tunnel" type="button">Dig tunnel…</button><button class="btn danger small" data-act="remove" type="button">Remove</button></div></div>
+  <div class="sect"><span class="lbl">Ground</span>${groundBar(st.sand,st.depth)}<div class="dim" style="font-size:14px">Sand ${R0(st.sand)} m, then rock. Shaft ${st.depth} m: ${R0(st.sandM)} m in sand, ${R0(st.rockM)} m in rock.</div>
+    <div class="row"><span>Blast protection</span><span class="num">${R0(st.prot*100)}%</span></div>${meter(st.prot,.9,st.prot<.35?'var(--bad)':st.prot<.6?'var(--warn)':'var(--ok)')}</div>
+  <div class="sect"><span class="lbl">What it holds</span>${capGrid(st)}</div>
+  <div class="sect"><span class="lbl">Cost</span><div class="ledger">${L_('Excavation','  '+mil(st.dig))}${L_('Shaft lining',mil(st.line))}${L_(`Head works and blast door (Ø${s.d0} m)`,mil(st.head))}${L_('Fit-out',mil(st.fit))}${L_('First fill of water, fuel and food',mil(st.stock))}${L_(`Road, ${num((s.roadCells||0)*MPC)} m`,mil(st.road))}<span class="tot">Total</span><span class="tot num">${mil(st.total)}</span></div></div>
+  ${w.length?`<div class="sect"><span class="lbl">Check</span><ul class="warns">${w.map(([k,m])=>`<li class="${k}">${esc(m.replace(/^S\d: /,''))}</li>`).join('')}</ul></div>`:''}`;
+}
+function groundBar(sand,depth){const max=Math.max(depth,sand,40)+4;return `<div class="stack" style="height:18px">
+  <span style="width:${Math.min(sand,max)/max*100}%;--c:#c9a85e"></span><span style="width:${(max-Math.min(sand,max))/max*100}%;--c:#77757f"></span><b style="left:calc(${depth/max*100}% - 2px)" title="Shaft bottom"></b></div>
+  <div class="row dim" style="font-size:12px"><span>0 m</span><span>shaft bottom ${depth} m</span><span>${R0(max)} m</span></div>`;}
+function capGrid(st){const c=(lab,v,cls='')=>`<div><span class="lbl">${lab}</span><span class="v ${cls}">${v}</span></div>`;
+  return `<div class="kv">${c('Beds',`${st.beds}`)}${c('Expected intake',`${st.roster}`,st.roster>st.beds?'neg':'')}${c('Air',`${R0(st.scrub/Math.max(1,st.need)*100)}%`,st.scrub<st.need?'neg':'pos')}
+    ${c('Power',`${st.gcap} / ${R0(st.load)} kW`,st.gcap<st.load?'neg':'pos')}${c('Water',st.waterSh>=99?'—':`${Math.floor(st.waterSh)} shifts`,st.waterSh<12?'neg':'')}
+    ${c('Fuel',st.fuelSh?`${Math.floor(st.fuelSh)} shifts`:'none',st.fuelSh<12?'neg':'')}${c('Food',st.foodSh?`${Math.floor(st.foodSh)} shifts`:'none',st.foodSh<12?'neg':'')}
+    ${c('Bays',`${st.used} / ${st.bays}`,st.used>st.bays?'neg':'')}</div><div class="dim" style="font-size:13px">Water, fuel and food are for full tanks with a full house. A shift is 6 hours; relief comes 10 to 14 shifts after the sirens.</div>`;}
+function planSummary(){const b=buildTotals();return `<div class="sect"><span class="lbl">Budget</span><div class="ledger">${L_('Program budget',mil(G.build.budget))}${L_(`Shelters (${G.build.sites.length})`,'−'+mil(b.sites))}${L_(`Tunnels (${G.build.tunnels.length})`,'−'+mil(b.tun))}<span class="tot">Left</span><span class="tot num ${b.left<0?'neg':'pos'}">${mil(b.left)}</span></div></div>`;}
+function planPanel(){const w=allWarnings();let beds=0,roster=0;for(const s of G.build.sites){const st=siteStats(s);beds+=st.beds;roster+=st.roster;}
+  return `${planSummary()}<div class="sect"><span class="lbl">Shelters</span><table class="res"><thead><tr><th>Site</th><th>Beds</th><th>Depth</th><th>Cost</th></tr></thead><tbody>${G.build.sites.map(s=>{const st=siteStats(s);return `<tr><td><a href="#" data-sel="${s.id}" style="color:inherit">${s.id} ${esc(cap1(s.name))}</a></td><td class="num">${st.beds}</td><td class="num">${st.depth} m</td><td class="num">${mil(st.total)}</td></tr>`;}).join('')||'<tr><td colspan="4" class="dim">None yet</td></tr>'}</tbody></table>
+    <div class="row"><span>Beds ${num(beds)}</span><span>Expected intake ${num(roster)}</span></div></div>
+    <div class="sect"><span class="lbl">Before you commission</span><ul class="warns">${w.map(([k,m])=>`<li class="${k}">${esc(m)}</li>`).join('')||'<li class="pos">Everything checks out.</li>'}</ul>
+    <div class="actions"><button class="btn primary" data-act="commission" type="button">Commission the shelters ▸</button><button class="btn small" data-act="reterrain" type="button">New terrain</button></div></div>`;}
+function tunnelsPanel(){
+  let h=`<div class="sect"><span class="lbl">Tunnels</span><div class="dim" style="font-size:14px">Select a shelter and choose Dig tunnel, then click the other end. Depth decides how much of the route runs through sand or rock. Rock tunnels cost more and survive the shock much better.</div></div>`;
+  if(!G.build.tunnels.length)h+='<div class="dim">No tunnels yet.</div>';
+  G.build.tunnels.forEach((tn,i)=>{const ts=tunnelStats(tn);h+=`<div class="flow" style="${UI.selLink===i?'border-color:var(--amber)':''}"><b>${tn.a} – ${tn.b}</b><button class="btn small" data-act="edittun" data-i="${i}" type="button">Edit</button>
+    <span class="num">${num(ts.len)} m · ${tn.depth} m deep · ${R0(ts.rockFrac*100)}% rock · carries ${['W','A','P'].filter(k=>tn[k]).map(k=>cap1(RNAME[k])).join(', ')||'nothing'}</span><span class="num">${mil(ts.cost)}</span>
+    <span style="grid-column:1/-1">${meter(ts.rel,1,ts.rel<.5?'var(--bad)':ts.rel<.75?'var(--warn)':'var(--ok)')}<span class="dim" style="font-size:13px">Reliability ${R0(ts.rel*100)}%: chance it stays intact through the shock.</span></span></div>`;});
+  return h;}
+function buildSideClick(e){
+  const b=e.target.closest('[data-act]'),a2=e.target.closest('[data-sel]');
+  if(a2){e.preventDefault();UI.sel=a2.dataset.sel;UI.tab='site';refresh();return;}
+  if(!b||b.disabled)return;const a=b.dataset.act;
+  if(a==='design')openDesigner(UI.sel);
+  if(a==='tunnel'){setPick(UI.sel);toast(`Click the shelter to connect to ${UI.sel}.`);}
+  if(a==='remove'){const id=UI.sel;G.build.sites=G.build.sites.filter(s=>s.id!==id);G.build.tunnels=G.build.tunnels.filter(t=>t.a!==id&&t.b!==id);UI.sel=null;recomputeRoads();toast(`${id} removed.`);refresh();}
+  if(a==='edittun'){const tn=G.build.tunnels[+b.dataset.i];openTunnel(tn.a,tn.b);}
+  if(a==='commission')openCommission();
+  if(a==='reterrain'){UI.modal={type:'confirm'};modal(`<h2>New terrain?</h2><p>This throws away the map and every shelter and tunnel you have placed.</p><div class="foot"><button class="btn" id="cNo" type="button">Keep this map</button><button class="btn danger" id="cYes" type="button">Generate new terrain</button></div>`);
+    $('#cNo').onclick=closeModal;$('#cYes').onclick=()=>{newGame();closeModal();};}
+}
+
+/* ================= designer ================= */
+const XW=240,XH=380,XS=4,XH0=22;
+function openDesigner(id){UI.modal={type:'designer',id};renderDesigner();}
+function renderDesigner(){
+  const s=siteById(UI.modal.id),st=siteStats(s);
+  const fl=s.floors.map((d,i)=>{const top=floorTop(i),hs=clamp(st.sand-top,0,4),mat=hs>=4?'sand':hs<=0?'rock':'mix',prev=i?s.floors[i-1]:s.d0;
+    return `<div class="floor"><span class="dim">F${i+1}</span><span class="num">${top}–${top+4} m</span><span class="mat ${mat}">${mat==='mix'?'SAND/ROCK':mat.toUpperCase()}</span>
+      <select data-floor="${i}" aria-label="Floor ${i+1} diameter">${DIAMS.filter(x=>x<=prev).map(x=>`<option value="${x}" ${x===d?'selected':''}>Ø ${x} m</option>`).join('')}</select><span class="num dim bays">${baysFor(d)} bays</span></div>`;}).join('');
+  const mods=MOD_ORDER.map(k=>`<i class="sw" style="background:${MODS[k].color}"></i><span><b>${MODS[k].name}</b> <span class="dim">· ${MODS[k].desc} · ${money(MODS[k].cost)}</span></span>
+    <span class="cnt"><button class="btn small" data-mod="${k}" data-d="-1" type="button" aria-label="Fewer">−</button><b>${s.mods[k]}</b><button class="btn small" data-mod="${k}" data-d="1" type="button" aria-label="More">+</button></span><span class="num dim">${mil(s.mods[k]*MODS[k].cost)}</span>`).join('');
+  modal(`<div class="row"><h2>Design ${s.id} ${esc(s.name)}</h2><button class="btn small" id="dDone" type="button">Done</button></div>
+  <div class="designer"><canvas id="xsec" width="${XW}" height="${XH}" aria-label="Shaft cross-section"></canvas>
+  <div class="dctl">
+    <div class="dim" style="font-size:14px">Ground here: ${R0(st.sand)} m of sand, then rock. Every floor is 4 m tall. A floor can be as wide as the one above it or narrower, never wider.</div>
+    <div><span class="lbl">Top diameter (head works and blast door)</span><div class="seg">${DIAMS.map(d=>`<button class="btn small ${d===s.d0?'on':''}" data-d0="${d}" type="button">${d} m</button>`).join('')}</div></div>
+    <div><div class="row"><span class="lbl">Shaft · ${s.floors.length} floors · ${st.depth} m deep · ${st.bays} bays</span><span class="actions"><button class="btn small" id="dAdd" type="button" ${s.floors.length>=MAXFLOORS?'disabled':''}>+ Floor</button><button class="btn small" id="dDel" type="button" ${s.floors.length<=1?'disabled':''}>− Bottom floor</button></span></div><div class="floors">${fl}</div></div>
+    <div><div class="row"><span class="lbl">Furnishing · ${st.used} of ${st.bays} bays used</span><button class="btn small" id="dAuto" type="button">Auto-furnish</button></div>${meter(st.used,Math.max(st.bays,st.used),st.used>st.bays?'var(--bad)':'var(--amber)')}<div class="mods" style="margin-top:8px">${mods}</div></div>
+    ${capGrid(st)}
+    <div class="ledger">${L_('Excavation and lining',mil(st.dig+st.line))}${L_('Head works',mil(st.head))}${L_('Fit-out',mil(st.fit))}${L_('First fill',mil(st.stock))}${L_('Road',mil(st.road))}<span class="tot">Shelter total · program left</span><span class="tot num ${buildTotals().left<0?'neg':''}">${mil(st.total)} · ${mil(buildTotals().left)}</span></div>
+  </div></div>`,1080);
+  drawXsec(s,st);
+  $('#dDone').onclick=closeModal;
+  document.querySelectorAll('[data-d0]').forEach(b=>b.onclick=()=>{s.d0=+b.dataset.d0;for(let i=0;i<s.floors.length;i++)s.floors[i]=Math.min(s.floors[i],i?s.floors[i-1]:s.d0);afterDesign();});
+  document.querySelectorAll('[data-floor]').forEach(sel=>sel.onchange=()=>{const i=+sel.dataset.floor;s.floors[i]=+sel.value;for(let k=i+1;k<s.floors.length;k++)s.floors[k]=Math.min(s.floors[k],s.floors[k-1]);afterDesign();});
+  $('#dAdd').onclick=()=>{s.floors.push(s.floors.length?s.floors[s.floors.length-1]:s.d0);thud();afterDesign();};
+  $('#dDel').onclick=()=>{s.floors.pop();afterDesign();};
+  $('#dAuto').onclick=()=>{s.mods=suggestMods(s);blip();afterDesign();};
+  document.querySelectorAll('[data-mod]').forEach(b=>b.onclick=()=>{const k=b.dataset.mod;s.mods[k]=Math.max(0,s.mods[k]+ +b.dataset.d);tone(1500,.01,.015);afterDesign();});
+}
+function afterDesign(){clampTunnels();const sc=document.querySelector('.floors')?.scrollTop;renderDesigner();const f=document.querySelector('.floors');if(f&&sc!=null)f.scrollTop=sc;}
+function packMods(s){const seq=[];for(const k of MOD_ORDER)for(let n=0;n<s.mods[k];n++)seq.push(k);const out=[];let p=0;
+  s.floors.forEach(d=>{const b=baysFor(d),row=[];for(let k=0;k<b;k++)row.push(seq[p++]||null);out.push(row);});return {rows:out,over:Math.max(0,seq.length-p)};}
+function drawXsec(s,st){
+  const prevT=useTarget(fitCanvas($('#xsec'),XW,XH)),c=null,P=F;
+  const r=mul(s.x*31+s.y),cx=140,sandY=XH0+st.sand*XS;
+  P(0,0,XW,XH0,'#2b2240');for(let k=0;k<12;k++)P(r()*XW,r()*XH0*.7,1,1,'#6d6290');
+  P(0,XH0-3,XW,3,'#4d7a3c');
+  P(0,XH0,XW,Math.max(0,sandY-XH0),'#c9a85e');for(let k=0;k<500;k++){const y=XH0+r()*(sandY-XH0);P(r()*XW,y,1,1,r()<.5?'#b8964f':'#dcbd73');}
+  P(0,sandY,XW,XH-sandY,'#6d6a74');for(let k=0;k<160;k++){const x=r()*XW,y=sandY+r()*(XH-sandY);P(x,y,r()*6+2,1,'#5c5963');}
+  // ruler
+  for(let m=0;m*XS+XH0<XH;m+=4){const y=XH0+m*XS;P(0,y,m%20===0?8:4,1,'#efe6cf');if(m%20===0&&m)txt(`${m}M`,10,y-3,'#efe6cf','left',c);}
+  txt(`SAND ${R0(st.sand)}M`,XW-4,XH0+4,'#5a4520','right',c);if(sandY<XH-12)txt('ROCK',XW-4,sandY+4,'#d8d6de','right',c);
+  // head works
+  const hw=s.d0*XS*1.2;P(cx-hw/2-4,XH0-10,hw+8,10,'#9a9aa6');P(cx-hw/2-4,XH0-10,hw+8,2,'#c9c9d6');P(cx-6,XH0-14,12,4,'#5d5e6b');
+  P(cx-hw/2,XH0,hw,16,'#3a3050');P(cx-hw/2,XH0,hw,2,'#9a9aa6');txt('ENTRY',cx,XH0+5,'#a197b4','center',c);
+  const {rows,over}=packMods(s);
+  s.floors.forEach((d,i)=>{const top=XH0+floorTop(i)*XS,w=d*XS*1.2,x=cx-w/2,inSand=top<sandY,wall=inSand?3:1;
+    P(x-wall,top,w+wall*2,16,inSand?'#8b8c99':'#a3a3ad');P(x,top,w,16,'#1b1624');P(x,top+15,w,1,'#5d5e6b');
+    const row=rows[i],n=row.length;if(n){const bw=(w-4)/n;row.forEach((k,j)=>{P(x+2+j*bw,top+3,Math.max(1,bw-1),10,k?MODS[k].color:'#2b2438');});}});
+  if(over)txt(`${over} MODULES DO NOT FIT`,cx,XH-12,'#ec4b3f','center',c);
+  // tunnels at depth
+  G.build.tunnels.filter(t=>t.a===s.id||t.b===s.id).forEach((t,k)=>{const y=XH0+t.depth*XS-6,side=k%2?1:-1,fw=(s.floors[Math.min(s.floors.length-1,Math.floor((t.depth-4)/4))]||s.d0)*XS*1.2/2;
+    const x0=side>0?cx+fw:0+ (cx-fw-40>0?cx-fw-40:0);P(side>0?cx+fw:cx-fw-40,y,40,6,'#0f0b15');P(side>0?cx+fw:cx-fw-40,y+1,40,4,'#3a3050');txt(t.a===s.id?t.b:t.a,side>0?cx+fw+20:cx-fw-20,y-9,'#f2b33d','center',c);});
+  useTarget(prevT);
+}
+
+/* ================= tunnel dialog ================= */
+function openTunnel(a,b){
+  const ex=G.build.tunnels.find(t=>(t.a===a&&t.b===b)||(t.a===b&&t.b===a));
+  const draft=ex?{...ex}:{a,b,depth:0,W:true,A:true,P:true};
+  const mx=tunnelStats(draft).maxDepth;if(!ex)draft.depth=Math.max(8,Math.min(mx,Math.floor(mx*.7/4)*4));
+  UI.modal={type:'tunnel',draft,ex};renderTunnel();}
+function renderTunnel(){
+  const m=UI.modal,t=m.draft,ts=tunnelStats(t);
+  const deps=[];for(let d=8;d<=ts.maxDepth;d+=4)deps.push(d);
+  const conduit=(k,cap)=>`<label><input type="checkbox" id="tc${k}" ${t[k]?'checked':''}> <i class="sw" style="background:${COL[k]};width:10px;height:10px;display:inline-block"></i> ${cap1(RNAME[k])} <span class="dim">${cap}</span></label>`;
+  modal(`<h2>Tunnel ${t.a} – ${t.b}</h2>
+  <div class="dim" style="font-size:14px">${num(ts.len)} m. The tunnel leaves each shaft at the depth you pick; it cannot be deeper than the shallower shaft (${ts.maxDepth} m).</div>
+  <canvas id="prof" width="360" height="120" aria-label="Tunnel route profile"></canvas>
+  <div><div class="row"><span class="lbl" id="tdl">Depth ${t.depth} m</span><span class="dim">${deps.length?'':'Both shafts need at least two floors.'}</span></div>
+    <input type="range" id="tDepth" min="8" max="${Math.max(8,ts.maxDepth)}" step="4" value="${t.depth}" ${deps.length?'':'disabled'} aria-label="Tunnel depth"></div>
+  <div><span class="lbl">Lines laid in the tunnel</span><div class="check">${conduit('W','2,000 L/shift')}${conduit('A','600 CFM')}${conduit('P','60 kW')}</div></div>
+  <div class="kv" id="tStats"></div>
+  <div class="foot">${m.ex?'<button class="btn danger" id="tDel" type="button">Fill in tunnel</button>':''}<button class="btn" id="tCancel" type="button">Cancel</button><button class="btn primary" id="tOk" type="button" ${deps.length?'':'disabled'}>${m.ex?'Save tunnel':'Dig tunnel'}</button></div>`,640);
+  const upd=()=>{const s2=tunnelStats(t);$('#tdl').textContent=`Depth ${t.depth} m`;
+    const c=(l,v,cls='')=>`<div><span class="lbl">${l}</span><span class="v ${cls}">${v}</span></div>`;
+    $('#tStats').innerHTML=c('In rock',`${R0(s2.rockFrac*100)}%`)+c('Reliability',`${R0(s2.rel*100)}%`,s2.rel<.5?'neg':s2.rel>.75?'pos':'')+c('Cost',mil(s2.cost))+c('Program left',mil(buildTotals().left-(s2.cost-(m.ex?tunnelStats(m.ex).cost:0))),'');
+    drawProfile(t,s2);};
+  $('#tDepth').oninput=e=>{t.depth=+e.target.value;upd();};
+  for(const k of ['W','A','P'])$('#tc'+k).onchange=e=>{t[k]=e.target.checked;upd();};
+  $('#tCancel').onclick=closeModal;
+  $('#tOk').onclick=()=>{if(!t.W&&!t.A&&!t.P){toast('Lay at least one line, or the tunnel is just a crawlway.',true);return;}
+    if(m.ex)Object.assign(m.ex,t);else G.build.tunnels.push(t);thud();toast(`Tunnel ${t.a}–${t.b} ${m.ex?'saved':'dug'}: ${mil(tunnelStats(t).cost)}.`);UI.tab='tunnels';UI.selLink=G.build.tunnels.indexOf(m.ex||t);closeModal();};
+  if(m.ex)$('#tDel').onclick=()=>{G.build.tunnels=G.build.tunnels.filter(x=>x!==m.ex);UI.selLink=null;closeModal();};
+  upd();
+}
+function drawProfile(t,ts){const prevT=useTarget(fitCanvas($('#prof'),360,120)),c=null,P=F;
+  const W=360,H=120,top=14,maxD=Math.max(60,t.depth+12),sy=d=>top+d/maxD*(H-top-4),n=ts.prof.length;
+  P(0,0,W,H,'#6d6a74');P(0,0,W,top,'#2b2240');P(0,top-2,W,2,'#4d7a3c');
+  for(let k=0;k<n;k++){const x0=k/(n)*W,w=W/n+1;P(x0,top,w,sy(ts.prof[k])-top,'#c9a85e');}
+  const A=siteById(t.a),B=siteById(t.b);const da=shaftDepth(A),db=shaftDepth(B);
+  P(0,top,8,sy(da)-top,'#1b1624');P(W-8,top,8,sy(db)-top,'#1b1624');
+  for(let k=0;k<n;k++){const x0=k/n*W,w=W/n+1,inS=t.depth<=ts.prof[k];P(x0,sy(t.depth)-2,w,4,inS?'#e8793c':'#efe6cf');}
+  txt(t.a,10,2,'#efe6cf','left',c);txt(t.b,W-10,2,'#efe6cf','right',c);txt('SAND',W/2,top+2,'#5a4520','center',c);
+  txt('ORANGE = TUNNEL IN SAND  ·  WHITE = IN ROCK',W/2,H-10,'#efe6cf','center',c);
+  useTarget(prevT);
+}
+
+/* ================= commission ================= */
+function openCommission(){const w=allWarnings(),errs=w.filter(x=>x[0]==='err');UI.modal={type:'confirm'};
+  modal(`<h2>Commission the shelters</h2>${errs.length?`<p>Fix these first:</p><ul class="warns">${errs.map(([k,m])=>`<li class="err">${esc(m)}</li>`).join('')}</ul><div class="foot"><button class="btn" id="cNo" type="button">Back to the plans</button></div>`
+  :`<p>Construction is final once commissioned. The tanks, fuel bunkers and storerooms are filled and each site gets a staff of twelve. Then you wait for the call.</p>${w.length?`<ul class="warns">${w.map(([k,m])=>`<li class="${k}">${esc(m)}</li>`).join('')}</ul>`:''}
+  <div class="foot"><button class="btn" id="cNo" type="button">Keep building</button><button class="btn primary" id="cYes" type="button">Commission and take the watch</button></div>`}`);
+  $('#cNo').onclick=closeModal;if($('#cYes'))$('#cYes').onclick=()=>{commission();};}
+
+/* ================= operations: model ================= */
+const ids=()=>S.ids;
+const st=id=>S.sites[id];
+function opsSite(id,name,warden,o){return Object.assign({id,name,warden,staff:12,pop:12,cap:0,assigned:0,civ:0,water:0,wcap:0,air:96,fuel:0,fcap:0,gcap:0,baseKw:15,
+  scrubCap:0,scrubBays:0,plantCap:0,filterBays:0,food:0,foodCap:0,gen:100,scrub:100,plant:100,hull:100,morale:75,spares:1,lioh:0,leak:0,dry:0,hungry:0,dead:0,busy:null,repair:null,lost:false,evac:false,prot:.3,d0:12,depth:40,x:0,y:0},o);}
+function commission(){
+  const sites={},q=v=>R0(clamp(v,0,100));
+  sites.CC=opsSite('CC','SHELTER CTRL','YOU',{staff:60,pop:60,cap:80,assigned:15,scrubCap:600,scrubBays:1,plantCap:400,filterBays:1,gcap:200,baseKw:40,wcap:40000,water:40000,fcap:8000,fuel:8000,foodCap:3000,food:3000,prot:.7,depth:40,d0:10,spares:2,lioh:2,morale:80,x:WD.cc.x,y:WD.cc.y,sandM:0});
+  for(const b of G.build.sites){const s=siteStats(b),m=b.mods;
+    sites[b.id]=opsSite(b.id,b.name,'WARDEN '+b.warden,{cap:s.beds,assigned:s.roster,scrubCap:s.scrub,scrubBays:m.AIR,plantCap:m.FILTER*600,filterBays:m.FILTER,gcap:s.gcap,
+      wcap:s.wcap,water:s.wcap,fcap:s.fcap,fuel:s.fcap,foodCap:s.food,food:s.food,prot:s.prot,depth:s.depth,d0:b.d0,sandM:s.sandM,
+      gen:q(70+rnd()*30),scrub:q(68+rnd()*32),plant:q(60+rnd()*40),spares:1+(rnd()<.4?1:0),lioh:m.STORE?1+(rnd()<.5?1:0):0,x:b.x,y:b.y});}
+  const order=['CC',...G.build.sites.map(s=>s.id)];
+  const links=G.build.tunnels.map(t=>{const ts=tunnelStats(t);return {a:t.a,b:t.b,cap:{W:t.W?2000:0,A:t.A?600:0,P:t.P?60:0},hp:100,ok:true,rel:ts.rel,depth:t.depth,rock:ts.rockFrac,len:ts.len};});
+  S=G.S={v:3,ids:order,shift:0,defcon:1,grid:true,relief:10+Math.floor(rnd()*5),over:null,sites,links,flows:[],orders:[],mails:[],log:[],events:[],flags:{},queue:[],deck:{},nextMail:1,nextOrder:1,nextFlow:1};
+  G.phase='ops';UI.sel='CC';UI.selLink=null;UI.tab='shelter';UI.pick=null;
+  ev('Shelters commissioned. Tanks full, staff of twelve at each site.',true);
+  closeModal();fadeToWar();
+}
+let fadeT=[],warStarted=false;
+function startWar(){if(warStarted)return;warStarted=true;S.events=[];attack();for(const [at,k] of SCHED)if(at===0)scheduled(k);refresh();}
+function fadeToWar(){
+  const f=$('#fade'),sp=reduced?.35:1;warStarted=false;f.innerHTML='';f.hidden=false;void f.offsetWidth;f.classList.add('on');
+  const at=(ms,fn)=>fadeT.push(setTimeout(fn,ms*sp));
+  const line=(txt,cls)=>{const d=document.createElement('div');d.className='fl '+(cls||'');d.textContent=txt;f.appendChild(d);};
+  const finish=()=>{fadeT.forEach(clearTimeout);fadeT=[];startWar();f.classList.remove('on');setTimeout(()=>{f.hidden=true;f.innerHTML='';openReport();},reduced?50:900);};
+  at(1100,()=>line('12 NOV 1986 · SHELTERS COMMISSIONED'));
+  at(2300,()=>line('TANKS FULL. STAFF ON STATION. THE DOORS STAY OPEN.','dim'));
+  at(3800,()=>line('14 NOV 1986 · 05:52'));
+  at(4800,()=>{line('SIRENS','red');alarm();});
+  at(5600,startWar);
+  at(7000,finish);
+  f.onclick=finish;
+}
+const linkName=l=>l.a+'-'+l.b;
+function findLink(x,y){return S.links.find(l=>(l.a===x&&l.b===y)||(l.a===y&&l.b===x));}
+function bfs(from,to,ok){if(from===to)return null;const prev={[from]:null},q=[from];
+  while(q.length){const n=q.shift();if(n===to)break;S.links.forEach((l,i)=>{if(!ok(i))return;const m=l.a===n?l.b:l.b===n?l.a:null;if(m&&!(m in prev)){prev[m]=[n,i];q.push(m);}});}
+  if(!(to in prev))return null;const nodes=[to],links=[];for(let n=to;prev[n];n=prev[n][0]){links.unshift(prev[n][1]);nodes.unshift(prev[n][0]);}return {nodes,links};}
+const staticRoute=(t,a,b)=>bfs(a,b,i=>S.links[i].ok&&S.links[i].hp>0&&S.links[i].cap[t]>0);
+function dtg(sh){const h=6+sh*6,d=Math.floor(h/24),hh=h%24;return `D${d+1} ${14+d}NOV86 ${String(hh).padStart(2,'0')}00Z`;}
+function shortT(sh){const h=6+sh*6,d=Math.floor(h/24),hh=h%24;return `D${d+1} ${String(hh).padStart(2,'0')}00`;}
+const war=()=>S.shift>=WAR;
+function loads(s){return {base:s.baseKw+.06*s.pop,scrub:s.scrubBays*7,plant:4+s.filterBays*6};}
+function compute(){
+  const N={},R=S.links.map(l=>{const h=l.ok?l.hp/100:0;const c={W:l.cap.W*h,A:l.cap.A*h,P:l.cap.P*h};return {cap:{...c},left:{...c}};});
+  for(const id of ids()){const s=st(id),dead=s.lost||s.evac,L=loads(s);const gen=dead||S.grid?0:(s.fuel>0&&s.gen>0?s.gcap*s.gen/100:0);
+    N[id]={s,dead,L,load:L.base+L.scrub+L.plant,gen,pin:0,pout:0,ain:0,aout:0,win:0,wout:0};}
+  const run=(t,f,availFn,extraCap)=>{f.actual=0;f.got=0;f.via='';f.note='';const a=N[f.from],b=N[f.to];
+    if(!a||!b||a.dead||b.dead){f.note='SITE DARK';return 0;}
+    if(S.grid&&t!=='W'){f.note='STANDBY';const r=staticRoute(t,f.from,f.to);f.via=r?r.nodes.join('-'):'';return 0;}
+    const r=bfs(f.from,f.to,i=>R[i].left[t]>=1);if(!r){f.note=staticRoute(t,f.from,f.to)?'LINES FULL':'NO ROUTE';return 0;}
+    const neck=Math.min(...r.links.map(i=>R[i].left[t])),amt=Math.floor(Math.min(f.amt,neck,Math.max(0,availFn(a)),extraCap(a,neck)));f.via=r.nodes.join('-');
+    if(amt<=0){f.note='NO SUPPLY';return 0;}
+    r.links.forEach((i,k)=>{R[i].left[t]-=amt;const fwd=S.links[i].a===r.nodes[k];R[i][(fwd?'fw':'bw')+t]=true;});
+    f.actual=amt;f.got=Math.floor(amt*Math.pow(LOSS[t],r.links.length));f.note=amt<f.amt?(amt>=neck?'CAPPED BY LINE':'PARTIAL'):'LIVE';return f.got;};
+  for(const f of S.flows.filter(f=>f.type==='P')){const got=run('P',f,a=>a.gen-a.pout,()=>1e9);if(N[f.from])N[f.from].pout+=f.actual;if(N[f.to])N[f.to].pin+=got;}
+  for(const id of ids()){const n=N[id],s=n.s,L=n.L;
+    if(n.dead)Object.assign(n,{avail:0,baseF:0,scrubF:0,plantF:0,used:0,burn:0,bal:0,genUsed:0});
+    else if(S.grid)Object.assign(n,{avail:n.load,baseF:1,scrubF:1,plantF:1,used:n.load,burn:0,bal:0,genUsed:0});
+    else{let a=Math.max(0,n.gen-n.pout)+n.pin;n.avail=a;n.baseF=Math.min(1,a/L.base);a=Math.max(0,a-L.base);
+      n.scrubF=L.scrub?Math.min(1,a/L.scrub):0;a=Math.max(0,a-L.scrub*n.scrubF);n.plantF=Math.min(1,a/L.plant);
+      n.used=n.baseF*L.base+n.scrubF*L.scrub+n.plantF*L.plant;n.genUsed=Math.max(0,Math.min(n.gen,n.used+n.pout-n.pin));n.burn=R0(2*n.genUsed);n.bal=n.avail-n.load;}
+    n.scrubOut=s.scrubCap*s.scrub/100*n.scrubF;n.need=s.pop*CFM_PER_PERSON;}
+  for(const f of S.flows.filter(f=>f.type==='A')){const got=run('A',f,a=>a.scrubOut-a.aout,()=>1e9);if(N[f.from])N[f.from].aout+=f.actual;if(N[f.to])N[f.to].ain+=got;}
+  for(const id of ids()){const n=N[id],s=n.s;n.supply=n.scrubOut-n.aout+n.ain;const r=n.need>0?(n.supply-n.need)/n.need:1;
+    n.airDelta=war()?clamp(r*40,-25,6)-(s.hull<50?3:0):(96-s.air)*.5;
+    n.use=war()?s.pop*WATER_PER_PERSON:0;n.rec=Math.min(n.use,s.plantCap)*.5*s.plant/100*n.plantF;n.recPct=n.use?n.rec/n.use:0;
+    n.foodUse=war()?s.pop*FOOD_PER_PERSON:0;}
+  for(const f of S.flows.filter(f=>f.type==='W')){const got=run('W',f,a=>a.s.water-a.wout,(a,neck)=>neck*a.plantF);if(N[f.from])N[f.from].wout+=f.actual;if(N[f.to])N[f.to].win+=got;}
+  for(const id of ids()){const n=N[id],s=n.s;n.wnet=n.win-n.wout-(war()?n.use-n.rec+s.leak:0);}
+  N._R=R;return N;
+}
+function siteStatus(s,n){if(s.evac)return 'EVAC';if(s.lost)return 'DARK';n=n||compute()[s.id];
+  const sh=n.wnet<0?s.water/-n.wnet:99;
+  if(s.air<50||(war()&&sh<2)||n.baseF<1||s.hull<40||(war()&&s.food<=0))return 'CRIT';
+  if(s.air<72||(war()&&sh<5)||n.scrubF<1||n.plantF<1||s.hull<70||s.gen<30||s.scrub<30||s.plant<30||s.pop>s.cap||(war()&&n.supply<n.need)||(war()&&s.food<n.foodUse*4))return 'WARN';
+  return 'OK';}
+
+/* ---------------- mail ---------------- */
+const FROM={HQ:['REGION 7 CIVIL DEFENSE','DIR. T. HOLLIS'],DEPOT:['DEPOT 12 LOGISTICS','SGT. P. ABARA'],WIRE:['PRESS WIRE (RELAY)',''],SYS:['SHELTERNET AUTO',''],ENG:['CC ENGINEERING','CHIEF ENG. K. DOSS']};
+function fromName(f){return S.sites[f]?`${f} ${S.sites[f].name}`:FROM[f][0];}
+function fromFull(f){return S.sites[f]?`${f} ${S.sites[f].name} / ${S.sites[f].warden}`:FROM[f][0]+(FROM[f][1]?' / '+FROM[f][1]:'');}
+function send(m){const mail={id:S.nextMail++,shift:S.shift,from:m.from,subj:m.subj,body:m.body,key:m.key||null,p:m.p||{},opts:m.opts||null,read:false,resolved:null,reply:null,flash:!!m.flash};S.mails.push(mail);return mail;}
+const shelters=()=>ids().filter(i=>i!=='CC');
+const liveShelters=()=>shelters().filter(i=>!st(i).lost&&!st(i).evac);
+const neighbors=id=>S.links.filter(l=>l.a===id||l.b===id).map(l=>l.a===id?l.b:l.a);
+const sig=id=>`- ${st(id).warden}, ${st(id).name}`;
+const kits=n=>`${n} kit${n===1?'':'s'}`;
+function sealedProj(id){const s=st(id),p=s.staff+s.assigned,L=15+.06*p+s.scrubBays*7+4+s.filterBays*6,use=p*WATER_PER_PERSON,rec=Math.min(use,s.plantCap)*.5*s.plant/100;
+  return {p,air:s.scrubCap*s.scrub/100/(p*CFM_PER_PERSON),pow:s.gcap*s.gen/100-L,water:(use-rec)>0?s.water/(use-rec):99,fuel:s.fuel/(2*Math.min(L,s.gcap*s.gen/100)||1),food:s.food/(p*FOOD_PER_PERSON)};}
+const MAILS={
+  welcome:()=>{const beds=shelters().reduce((a,i)=>a+st(i).cap,0),ros=ids().reduce((a,i)=>a+st(i).assigned+st(i).staff,0);return {from:'HQ',subj:'SHELTERS COMMISSIONED',body:`Controller,
+
+The Region 7 shelter network is commissioned: ${shelters().length} shelter${shelters().length===1?'':'s'} with ${num(beds)} beds and ${S.links.length} tunnel${S.links.length===1?'':'s'}. Each site has a staff of twelve. If the sirens sound, about ${num(ros)} people from ${WD.towns.map(t=>cap1(t.name)).join(', ')} will come down the elevators and stay until relief comes.
+
+Tanks are about half full. Use the time you have:
+  - Order fuel, water, food and parts from Depot 12 in each shelter's panel.
+  - Overhaul anything that came out of commissioning in poor shape.
+  - Drag from one shelter to another to set up water, air or power flows.
+  - End the shift when the board is squared away. Six hours pass.
+- DIR. T. HOLLIS, REGION 7 CIVIL DEFENSE`};},
+  defgen:p=>{const s=st(p.s);return {from:p.s,subj:'GENERATOR RUNNING ROUGH',opts:[`Order a spares kit for ${cap1(s.name)} ($3,200)`,'Deny. Nurse it along'],body:`Control,
+
+Our new genset surges under load and throws soot. Commissioning left it at ${R0(s.gen)}%, about ${R0(s.gcap*s.gen/100)} kW. We hold ${kits(s.spares)}, and I would rather keep it for the day something else breaks.
+
+Requesting one more maintenance kit.
+${sig(p.s)}`};},
+  defscrub:p=>{const s=st(p.s),pr=sealedProj(p.s);return {from:p.s,subj:'SCRUBBERS UNDER RATING',opts:[`Order a spares kit for ${cap1(s.name)} ($3,200)`,`Order LiOH canisters for ${cap1(s.name)} ($1,800)`,'Tell them to wait'],body:`Control,
+
+The scrubber bank came in at ${R0(s.scrub)}% on acceptance test. It delivers ${num(s.scrubCap*s.scrub/100)} CFM. Sealed, with ${pr.p} people on our roster, we will need ${num(pr.p*CFM_PER_PERSON)}.
+
+Send a kit or send LiOH. Something, before the snow does.
+${sig(p.s)}`};},
+  defplant:p=>{const s=st(p.s);return {from:p.s,subj:'WATER PLANT AT '+R0(s.plant)+'%',body:`Control,
+
+Our water filtration plant tested at ${R0(s.plant)}%. A healthy plant gets half of the used water back; ours would recover a fraction of that. We have ${kits(s.spares)} and can overhaul it ourselves; it takes the staff a full shift.
+${sig(p.s)}`};},
+  review:()=>{const lines=shelters().map(id=>{const s=st(id),r=sealedProj(id);return `${id} ${s.name}: air ${R0(r.air*100)}% of need, power ${r.pow>=0?'+':''}${R0(r.pow)} kW, water ${r.water>=99?'plenty':Math.floor(r.water)+' shifts'}, fuel ${Math.floor(r.fuel)} shifts, food ${Math.floor(r.food)} shifts.`;});
+    const weak=shelters().map(id=>[id,sealedProj(id)]).sort((a,b)=>Math.min(a[1].water,a[1].fuel,a[1].food)-Math.min(b[1].water,b[1].fuel,b[1].food))[0];
+    return {from:'ENG',subj:'COMMISSIONING REVIEW',body:`Controller,
+
+Here is how each shelter stands if it sealed tonight with its whole roster inside and the tanks as they are now:
+
+${lines.join('\n')}
+
+Relief is planned for twelve shifts after the sirens.${weak?` ${weak[0]} is the thinnest. Orders arrive in two or three shifts; a standing flow through the tunnels works from today.`:''}
+
+Every tunnel line has a rated capacity: 2,000 L of water a shift, 600 CFM of air, 60 kW of power. Flows share it.
+- CHIEF ENG. K. DOSS`};},
+  depot:()=>({from:'DEPOT',subj:'CONVOY SCHEDULE',body:`SHELTER CONTROL,
+
+Depot 12 runs a convoy every shift while the roads are open.
+
+  DSL   diesel fuel, 2,000 L ............ $2,400   2 shifts
+  H2O   water tanker, 10,000 L .......... $1,500   2 shifts
+  FOOD  rations, 3,000 person-days ....... $2,000   2 shifts
+  KIT   maintenance spares kit .......... $3,200   3 shifts
+  LIOH  lithium hydroxide pallet ........ $1,800   2 shifts
+
+Order from the Depot 12 section of each shelter's panel. Tanks cannot hold more than they were built for. Anything still on the road at DEFCON 1 gets recalled.
+- SGT. P. ABARA, DEPOT 12`}),
+  wire1:()=>({from:'WIRE',subj:'GENEVA TALKS SUSPENDED',body:`GENEVA (AP) -- Arms talks were suspended tonight after both delegations walked out of the morning session. Each side blamed the other for a collision between naval vessels on Tuesday.\n\nMarkets in Tokyo opened sharply lower.`}),
+  defcon4:()=>({from:'HQ',subj:'DEFCON 4',body:`ALL SHELTERS,\n\nNational readiness is at DEFCON 4. No change to routine. Clear your maintenance backlog while it is quiet.\n- DIR. T. HOLLIS`}),
+  fuel:p=>{const s=st(p.s),r=sealedProj(p.s);return {from:p.s,subj:'FUEL, OR LACK THEREOF',opts:[`Order 2 x diesel for ${cap1(s.name)} ($4,800)`,`Order 1 x diesel ($2,400)`,'Hold. The grid will stay up'],body:`Control,
+
+${cap1(s.name)} holds ${num(s.fuel)} L of diesel in ${num(s.fcap)} L of tankage. Off grid, with our roster inside, that is about ${Math.floor(r.fuel)} shifts of generator time.
+
+Please order us fuel while the depot still answers.
+${sig(p.s)}`};},
+  defcon3:()=>({from:'HQ',subj:'DEFCON 3',body:`ALL SHELTERS,\n\nDEFCON 3. Top off consumables. Bring all plant to full serviceability. Depot 12 stops taking orders at DEFCON 2.\n\nOnce the depot closes, the tunnels are all you have.\n- DIR. T. HOLLIS`}),
+  drill:p=>({from:p.a,subj:'INTAKE DRILL',opts:['Approve the joint intake drill','Deny. Keep staff on maintenance'],body:`Control,
+
+${st(p.b).warden} at ${cap1(st(p.b).name)} has never run an intake for real, and neither has most of my staff.
+
+Request permission to run a joint intake drill with ${p.b}: volunteers from town, down the elevators, blast doors shut. It costs both sites their work slot this shift. If the day comes, doors that close fast are worth more than anything in a parts bin.
+${sig(p.a)}`}),
+  defcon2:()=>({from:'HQ',subj:'DEFCON 2 - DEPOT CLOSED',body:`ALL SHELTERS,\n\nDEFCON 2. Depot 12 is closed to new orders. Convoys already on the road will try to finish their runs.\n\nIntake rosters are posted in every town. If the sirens sound, open the doors and take your people in.\n- DIR. T. HOLLIS`}),
+  wire2:()=>({from:'WIRE',subj:'CIVIL DEFENSE',body:`WASHINGTON (AP) -- Civil defense sirens sounded in several states today. Officials described it as a test. Traffic leaving three cities was reported heavy into the evening.`}),
+  flash:()=>({from:'HQ',subj:'FLASH - DEFCON 1',flash:true,body:`FLASH FLASH FLASH
+
+ALL SHELTERS. DEFCON 1. SIRENS SOUNDING REGIONWIDE.
+DETONATIONS REPORTED IN SECTOR. COMMERCIAL POWER LOST. ALL SITES ON GENERATOR.
+
+OPEN YOUR DOORS. TAKE IN YOUR ROSTERS. SEAL WHEN FULL OR WHEN ORDERED.
+RELIEF WILL BE SENT WHEN THE ROADS ARE PASSABLE.
+- REGION 7`}),
+  hit:p=>{const s=st(p.s),cut=S.links.filter(l=>!l.ok&&(l.a===p.s||l.b===p.s)).map(linkName);return {from:p.s,subj:'WE GOT HIT',body:`Control,
+
+Near miss topside during intake. ${p.drill?'The doors were shut in forty seconds; the drill paid for itself.':'It took four minutes to get the doors shut with people still on the stairs.'} Hull integrity ${R0(s.hull)}%. ${s.prot<.4?'The shaft is mostly in sand and the lining cracked in two places.':'The rock held; the lining did not.'}
+
+The main water tank split along a weld. We are at ${num(s.water)} L and losing it to the floor.${cut.length?` Tunnel${cut.length>1?'s':''} ${cut.join(', ')} severed.`:''}
+
+We have ${s.pop} people inside.
+${sig(p.s)}`};},
+  fire:p=>({from:p.s,subj:'FIRE IN CABLE VAULT - OUT',body:`Control,\n\nCable vault fire, now out. Air took a beating: ${R0(st(p.s).air)}%. If anyone has scrubbed air to spare, we would take it.\n${sig(p.s)}`}),
+  survey:()=>{const cut=S.links.filter(l=>!l.ok),dmg=S.links.filter(l=>l.ok&&l.hp<100);return {from:'ENG',subj:'TUNNEL SURVEY',body:`Controller,
+
+Survey of the tunnels after the shock.
+Severed: ${cut.map(l=>`${linkName(l)} (${R0(l.rock*100)}% rock, ${l.depth} m deep)`).join(', ')||'none'}.
+Damaged: ${dmg.map(l=>`${linkName(l)} at ${l.hp}%`).join(', ')||'none'}.
+Intact: ${S.links.filter(l=>l.ok&&l.hp>=100).map(linkName).join(', ')||'none'}.
+
+${cut.length||dmg.length?'A crew from either end can repair a line with a spares kit: two shifts for a cut, one for damage. Click the line on the map.':'Every line came through. Whoever chose those depths earned their pay.'}
+- CHIEF ENG. K. DOSS`};},
+  depotcancel:()=>({from:'DEPOT',subj:'CONVOYS RECALLED',body:`SHELTER CONTROL,\n\nAll convoys recalled at DEFCON 1. These orders will not arrive:\n\n${S.flags.cancelled||''}\nCharges reversed.\n- SGT. P. ABARA, DEPOT 12`}),
+  intake:()=>({from:'SYS',subj:'INTAKE COMPLETE',body:`Intake complete. Shelter population:\n\n${ids().map(i=>`  ${i} ${st(i).name}: ${st(i).pop} on ${st(i).cap} beds${st(i).pop>st(i).cap?' (OVER CAPACITY)':''}`).join('\n')}\n\n  TOTAL ${num(ids().reduce((a,i)=>a+st(i).pop,0))}`}),
+  vent:p=>{const s=st(p.s);return {from:p.s,subj:'SCRUBBER DAMAGE / VENT PURGE',opts:['Authorize a vent purge','Deny. Stay sealed'],body:`Control,
+
+The shock cracked the scrubber housing; it runs at ${R0(s.scrub)}%. ${s.pop} people in here.
+
+I can run a vent purge: ten minutes of surface air through the HEPA bank. About 20 points of air quality. It also pulls fallout into the intake room, and everyone in here knows it.
+
+Alternatives: overhaul the scrubbers with a kit, or an air flow from a neighbor.
+${sig(p.s)}`};},
+  genloss:p=>{const s=st(p.s);return {from:p.s,subj:'LOST PRIMARY GEN',body:`Control,
+
+Second shock. Our generator plant is at ${R0(s.gen)}%: ${R0(s.gcap*s.gen/100)} kW against ${R0(loads(s).base+loads(s).scrub+loads(s).plant)} kW of load.${p.cut?` The ${p.cut} line went with it.`:''}
+
+We hold ${kits(s.spares)} and ${s.lioh} LiOH pallet${s.lioh===1?'':'s'}. A power flow from a neighbor would carry us.
+${sig(p.s)}`};},
+  relief:()=>({from:'HQ',subj:'RELIEF CONVOY',body:`ALL SHELTERS,\n\nA relief convoy is forming at Depot 12 under armored escort. ETA ${dtg(S.relief)}.\n\nThat is ${(S.relief-S.shift)*6} hours, if the roads hold. Hold until then.\n- DIR. T. HOLLIS`}),
+  evac:p=>{const s=st(p.s),t=st(p.to);return {from:p.s,subj:'REQUEST TO EVACUATE',opts:[`Approve. Move everyone to ${cap1(t.name)}`,`Deny. Hold ${cap1(s.name)}`],body:`Control,
+
+Air is ${R0(s.air)}% and water ${num(s.water)} L. We have ${s.pop} people and the old ones are struggling.
+
+The ${p.s}-${p.to} tunnel still holds. Request permission to move everyone through to ${cap1(t.name)}. They have ${t.pop} people on ${t.cap} beds and would be taking ${s.pop} more.
+
+I know what I am asking.
+${sig(p.s)}`};},
+  hold:p=>({from:p.s,subj:'HOLDING',body:`Control,\n\n${cap1(st(p.s).name)} is holding. Water ${num(st(p.s).water)} L, air ${R0(st(p.s).air)}%. The kids are running a card tournament by flashlight.\n\nThank you for not forgetting us.\n${sig(p.s)}`}),
+  guests:p=>({from:p.to,subj:'GUESTS',body:`Control,\n\n${cap1(st(p.s).name)} came through the tunnel at 0340. We are ${st(p.to).pop} people on ${st(p.to).cap} beds. Air and water will drain faster now. Plan for it.\n${sig(p.to)}`}),
+  hatch:p=>{const s=st(p.s);return {from:p.s,subj:'SURFACE HATCH',opts:[`Open the hatch (+${p.n} people)`,'Keep the hatch sealed'],body:`Control,
+
+There are about ${p.n} people at the surface hatch. A school bus from ${cap1(p.town)}, two teachers, a road crew. They are not on our roster. They walked the last six miles.
+
+We have ${s.pop} people on ${s.cap} beds. Opening means a decon cycle, fallout in the entry, and ${num(p.n*CFM_PER_PERSON)} more CFM of air and ${num(p.n*WATER_PER_PERSON)} more litres of water every shift.
+
+I need an answer, Control. They can see the camera.
+${sig(p.s)}`};},
+  hatchopen:p=>({from:p.s,subj:'RE: SURFACE HATCH',body:`Control,\n\nThey are inside and through decon. The children are sleeping in the generator gallery because it is warm. One of the teachers asked me who decides who comes in. I said you did.\n${sig(p.s)}`}),
+  hatchshut:p=>({from:p.s,subj:'RE: SURFACE HATCH',body:`Control,\n\nHatch stays sealed. They stayed at the camera for two hours, then walked north.\n\nThe people in here watched it on the monitor. It is very quiet.\n${sig(p.s)}`}),
+  update18:()=>({from:'HQ',subj:'CONVOY POSITION',body:`ALL SHELTERS,\n\nRelief convoy is at the river crossing. ${(S.relief-S.shift)*6} hours out.\n- DIR. T. HOLLIS`}),
+};
+function sendKey(k,p={}){const m=MAILS[k](p);return send({...m,key:k,p});}
+const SCHED=[[0,'flash'],[0,'hit'],[0,'fire'],[1,'intake'],[1,'survey'],[3,'relief']];
+const SCHED_OLD=[
+  [9,'flash'],[9,'hit'],[9,'fire'],[10,'intake'],[10,'survey'],[10,'vent'],[11,'genloss'],[12,'relief'],[14,'evac'],[15,'hatch'],[18,'update18']];
+function scheduled(k){const D=S.flags.defects||[],F=S.flags;
+  const ok=id=>id&&st(id)&&!st(id).lost&&!st(id).evac;
+  switch(k){
+    case 'defgen':if(ok(D[0]))sendKey(k,{s:D[0]});return;
+    case 'defscrub':if(ok(D[1])&&st(D[1]).scrub<100)sendKey(k,{s:D[1]});return;
+    case 'defplant':if(ok(D[2])&&st(D[2]).plant<100)sendKey(k,{s:D[2]});return;
+    case 'review':if(shelters().length)sendKey(k);return;
+    case 'fuel':{const c=liveShelters().filter(i=>st(i).gcap).sort((a,b)=>sealedProj(a).fuel-sealedProj(b).fuel)[0];if(c)sendKey(k,{s:c});return;}
+    case 'drill':{const l=S.links.find(l=>l.a!=='CC'&&l.b!=='CC');if(l)sendKey(k,{a:l.a,b:l.b});return;}
+    case 'hit':if(ok(F.hit))sendKey(k,{s:F.hit,drill:F.drill&&F.drill.includes(F.hit)});return;
+    case 'fire':if(ok(F.fire))sendKey(k,{s:F.fire});return;
+    case 'survey':if(S.links.length)sendKey(k);return;
+    case 'vent':if(ok(F.shock))sendKey(k,{s:F.shock});return;
+    case 'genloss':if(ok(F.genloss))sendKey(k,{s:F.genloss,cut:F.genlossCut});return;
+    case 'evac':{const c=liveShelters().map(id=>{const n=compute()[id];return [id,st(id).air+(n.wnet<0?Math.min(40,st(id).water/-n.wnet*4):40)];}).sort((a,b)=>a[1]-b[1]);
+      for(const [id,score] of c){if(score>110)break;const to=neighbors(id).find(x=>{const l=findLink(id,x);return l.ok&&x!=='CC'&&!st(x).lost&&!st(x).evac&&st(x).pop<st(x).cap*1.25;});
+        if(to){sendKey('evac',{s:id,to});return;}}
+      const h=liveShelters()[0];if(h)sendKey('hold',{s:h});return;}
+    case 'hatch':{const c=liveShelters().map(id=>{const [t,d]=nearestTown(st(id).x,st(id).y);return [id,t,d];}).sort((a,b)=>a[2]-b[2])[0];if(c)sendKey(k,{s:c[0],town:c[1].name,n:80+Math.floor(rnd()*7)*10});return;}
+    default:sendKey(k);
+  }
+}
+const EFFECTS={
+  defgen:[m=>order('KIT',m.p.s,1),m=>{st(m.p.s).morale-=6;return [true,'Acknowledged. Morale dips.'];}],
+  defscrub:[m=>order('KIT',m.p.s,1),m=>order('LIOH',m.p.s,1),m=>{st(m.p.s).morale-=10;return [true,"'Understood.' It was not understood."];}],
+  fuel:[m=>order('DSL',m.p.s,2),m=>order('DSL',m.p.s,1),m=>{st(m.p.s).morale-=5;return [true,"'Copy. Hoping.'"];}],
+  drill:[m=>{const a=st(m.p.a),b=st(m.p.b);if(a.busy||b.busy)return [false,'One of those sites already has a task this shift.'];a.busy=b.busy='INTAKE DRILL';a.morale+=10;b.morale+=15;S.flags.drill=[m.p.a,m.p.b];return [true,'Drill approved. Both sites run intake this shift.'];},
+    ()=>[true,"'Understood, Control.'"]],
+  vent:[m=>{const s=st(m.p.s);s.air=clamp(s.air+20,0,100);s.morale-=12;s.hull-=4;ev(`${m.p.s} vent purge: air +20, fallout in the intake room.`);return [true,'Purge authorized. Air +20.'];},()=>[true,'They stay sealed.']],
+  evac:[m=>{const a=st(m.p.s),b=st(m.p.to);if(a.lost||a.evac)return [false,'That shelter is already dark.'];const l=findLink(m.p.s,m.p.to);if(!l||!l.ok)return [false,'The tunnel is severed. Nobody can get through.'];
+      const n=a.pop;b.pop+=n;a.pop=0;a.evac=true;b.morale-=8;S.flows=S.flows.filter(f=>f.from!==m.p.s&&f.to!==m.p.s);S.queue.push([S.shift+1,'guests',m.p]);ev(`${m.p.s} evacuated: ${n} people moved to ${m.p.to}.`);return [true,`Evacuation approved. ${n} people moving.`];},
+    m=>{st(m.p.s).morale-=10;S.queue.push([S.shift+1,'hold',m.p]);return [true,"'Holding.'"];}],
+  hatch:[m=>{const s=st(m.p.s);s.pop+=m.p.n;s.civ+=m.p.n;s.air-=4;s.morale+=6;S.flags.hatch=m.p.n;S.queue.push([S.shift+1,'hatchopen',m.p]);ev(`${m.p.s} took in ${m.p.n} people from the surface.`);return [true,`Hatch opened. ${m.p.n} people in decon.`];},
+    m=>{st(m.p.s).morale-=25;S.queue.push([S.shift+1,'hatchshut',m.p]);return [true,'Hatch stays sealed.'];}],
+};
+
+/* ---------------- actions ---------------- */
+const CAT={DSL:{name:'Diesel fuel',unit:'2,000 L',cost:2400,lead:2},H2O:{name:'Water tanker',unit:'10,000 L',cost:1500,lead:2},FOOD:{name:'Rations',unit:'3,000 person-days',cost:2000,lead:2},KIT:{name:'Spares kit',unit:'1 kit',cost:3200,lead:3},LIOH:{name:'LiOH pallet',unit:'1 pallet',cost:1800,lead:2}};
+function order(code,id,q){const c=CAT[code];if(!c)return [false,'Unknown item.'];
+  if(S.shift>=WAR)return [false,'Depot 12 is not answering. There will be no more convoys.'];if(S.shift>=7)return [false,'Depot 12 closed at DEFCON 2.'];
+  const cost=c.cost*q;if(cost>S.budget)return [false,`That costs ${money(cost)}; the budget has ${money(S.budget)} left.`];
+  S.budget-=cost;S.orders.push({id:S.nextOrder++,code,site:id,q,eta:S.shift+c.lead});ev(`Ordered ${q} x ${code} for ${id} (${money(cost)}).`,true);
+  return [true,`Ordered ${q} × ${c.name.toLowerCase()} for ${id}. Arrives ${shortT(S.shift+c.lead)}. Budget left ${money(S.budget)}.`];}
+function setFlow(t,from,to,amt){const a=st(from),b=st(to),old=S.flows.find(f=>f.type===t&&f.from===from&&f.to===to);
+  if(amt<=0){if(!old)return [false,'There is no such flow to stop.'];S.flows=S.flows.filter(f=>f!==old);ev(`Stopped ${RNAME[t]} flow ${from}>${to}.`,true);return [true,`${cap1(RNAME[t])} flow ${from} → ${to} stopped.`];}
+  if(a.lost||a.evac||b.lost||b.evac)return [false,'One of those shelters is dark.'];
+  if(!staticRoute(t,from,to))return [false,`No working ${t==='W'?'water main':t==='A'?'air duct':'power cable'} connects ${from} and ${to}.`];
+  if(old)old.amt=amt;else S.flows.push({id:S.nextFlow++,type:t,from,to,amt});const f=old||S.flows[S.flows.length-1];compute();
+  ev(`Set ${RNAME[t]} flow ${from}>${to} ${amt} ${UNIT[t]}.`,true);
+  return [true,`${cap1(RNAME[t])} ${from} → ${to}: ${num(amt)} ${UNIT[t]}. ${f.note==='STANDBY'?'Standby until the grid fails.':`Moving ${num(f.actual)}, ${num(f.got)} arrives (${f.note.toLowerCase()}).`}`];}
+const SYSNAME={gen:'generator',scrub:'scrubbers',plant:'water plant'};
+function fix(id,sys){const s=st(id);if(s.lost||s.evac)return [false,`${id} is dark.`];if(s.busy)return [false,`${id} staff are busy: ${s.busy.toLowerCase()}.`];
+  if(sys==='scrub'&&!s.scrubCap||sys==='plant'&&!s.plantCap||sys==='gen'&&!s.gcap)return [false,`${id} has no ${SYSNAME[sys]} to overhaul.`];
+  if(s.spares<1)return [false,`${id} has no spare kits.`];
+  const amt=R0(25+15*clamp(s.morale,0,100)/100),before=R0(s[sys]);s.spares--;s[sys]=clamp(s[sys]+amt,0,100);s.busy='OVERHAUL '+SYSNAME[sys].toUpperCase();
+  let extra='';if(sys==='plant'&&s.leak){s.leak=0;extra=' Tank leak sealed.';}ev(`${id} overhauled ${SYSNAME[sys]}: ${before}% > ${R0(s[sys])}%.${extra}`,true);
+  return [true,`${id} ${SYSNAME[sys]} ${before}% → ${R0(s[sys])}%. Kit used; staff busy this shift.${extra}`];}
+function useLioh(id){const s=st(id);if(s.lioh<1)return [false,`${id} has no LiOH.`];s.lioh--;const b=R0(s.air);s.air=clamp(s.air+15,0,100);ev(`${id} opened a LiOH pallet: air ${b}% > ${R0(s.air)}%.`,true);return [true,`${id} opened a LiOH pallet. Air ${b}% → ${R0(s.air)}%.`];}
+function repair(x,y,who){const l=findLink(x,y);if(!l)return [false,'No such tunnel.'];if(l.ok&&l.hp>=100)return [false,'That tunnel is in full working order.'];
+  if(ids().some(i=>st(i).repair?.link===linkName(l)))return [false,'A crew is already on it.'];
+  const s=st(who);if(!s||s.lost||s.evac)return [false,`${who} is dark.`];if(s.busy)return [false,`${who} staff are busy.`];if(s.spares<1)return [false,`${who} has no spare kit.`];
+  const n=l.ok?1:2;s.spares--;s.repair={link:linkName(l),left:n};s.busy='REPAIR '+linkName(l);ev(`${who} sent a crew to repair ${linkName(l)}.`,true);
+  return [true,`${who} crew heading into the ${linkName(l)} tunnel with a kit. ${n} shift${n>1?'s':''}.`];}
+
+/* ---------------- shift ---------------- */
+function ev(t,quiet){S.log.push([S.shift,t]);if(!quiet)S.events.push(t);if(S.log.length>300)S.log.shift();}
+function casualties(s,n,cause){n=Math.min(Math.max(1,R0(n)),s.pop);if(n<=0)return;s.pop-=n;s.dead+=n;s.morale-=6;ev(`${s.id} lost ${n} ${n===1?'person':'people'} (${cause}).`);
+  (S.flags.cas=S.flags.cas||[]).push(`${s.id} ${s.name}: ${n} dead (${cause}). ${s.pop} left; air ${R0(s.air)}%, water ${num(s.water)} L.`);
+  if(s.pop<=0){s.lost=true;ev(`${s.id} ${s.name} has gone silent.`);send({from:'SYS',subj:`CARRIER LOST ${s.id}`,body:`SHELTERNET has no carrier from ${s.name}.\nListening watch maintained.`});S.flows=S.flows.filter(f=>f.from!==s.id&&f.to!==s.id);}}
+function endShift(){
+  if(S.over)return;S.events=[];const N=compute(),W_=war();
+  for(const id of ids()){const s=st(id),n=N[id];if(s.lost||s.evac)continue;
+    if(!S.grid)s.fuel=Math.max(0,R0(s.fuel-n.burn));
+    s.water=R0(clamp(s.water+n.wnet,0,s.wcap));s.air=clamp(s.air+n.airDelta,0,100);
+    if(!W_){s.gen-=.3;s.scrub-=.4+rnd()*.6;s.plant-=.3+rnd()*.5;}
+    else{s.food=Math.max(0,s.food-n.foodUse);
+      if(n.genUsed>0)s.gen-=1+rnd()*2;s.scrub-=(.5+rnd()*1.5)*n.scrubF;s.plant-=.6*n.plantF;
+      s.morale-=1;if(s.air<60)s.morale-=4;if(n.wnet<0&&s.water<-n.wnet*3)s.morale-=4;if(n.baseF<1)s.morale-=5;if(s.pop>s.cap)s.morale-=3;if(s.hull<50)s.morale-=3;
+      if(s.fuel<=0&&s.gcap&&!S.flags['nofuel'+id]){S.flags['nofuel'+id]=1;ev(`${id} generator stopped: fuel exhausted.`);}
+      for(const k of ['gen','scrub','plant'])if(s[k]>0&&s[k]<25&&rnd()<.15){s[k]=0;ev(`${id} ${SYSNAME[k]} failed outright.`);}
+      if(s.air<25)casualties(s,s.pop*.05,'hypoxia');else if(s.air<40)casualties(s,s.pop*.015,'CO2 poisoning');
+      if(s.water<=0){s.dry++;if(s.dry>=2)casualties(s,s.pop*.03,'dehydration');}else s.dry=0;
+      if(s.food<=0){s.hungry++;s.morale-=6;if(s.hungry>=4)casualties(s,s.pop*.01,'starvation');}else s.hungry=0;}
+    for(const k of ['gen','scrub','plant','morale','hull'])s[k]=clamp(s[k],0,100);
+    if(s.repair){s.repair.left--;if(s.repair.left<=0){const [x,y]=s.repair.link.split('-');const l=findLink(x,y);l.ok=true;l.hp=100;ev(`${s.repair.link} repaired by ${id} crew.`);s.repair=null;s.busy=null;}}else s.busy=null;}
+  for(const o of S.orders.filter(o=>o.eta<=S.shift+1)){const s=st(o.site);
+    if(o.code==='DSL')s.fuel=Math.min(s.fcap,s.fuel+2000*o.q);if(o.code==='H2O')s.water=Math.min(s.wcap,s.water+10000*o.q);if(o.code==='FOOD')s.food=Math.min(s.foodCap,s.food+3000*o.q);
+    if(o.code==='KIT')s.spares+=o.q;if(o.code==='LIOH')s.lioh+=o.q;ev(`Delivered: ${o.q} x ${o.code} to ${o.site}.`);}
+  S.orders=S.orders.filter(o=>o.eta>S.shift+1);
+  S.shift++;const t=S.shift;
+  if(t===1)intake(1);
+  if(t>=2&&t<S.relief)drawEvents();
+  if(t===S.relief-3)sendKey('update18');
+  if(t>=3)checkEvac();
+  for(const [at,k] of SCHED)if(at===t)scheduled(k);
+  S.queue=S.queue.filter(([at,k,p])=>{if(at<=t){sendKey(k,p);return false;}return true;});
+  alerts();
+  if(S.flags.cas&&S.flags.cas.length){send({from:'SYS',subj:`CASUALTY REPORT · ${S.flags.cas.length} SHELTER${S.flags.cas.length>1?'S':''}`,body:S.flags.cas.join('\n')});S.flags.cas=[];}
+  if(st('CC').lost||(t>WAR&&shelters().length&&shelters().every(i=>st(i).lost||st(i).evac)))S.over='lost';else if(t>=S.relief)S.over='won';
+  const nm=S.mails.filter(m=>m.shift===t).length;
+  S.over?openEnd():openReport();if(t===WAR)alarm();else if(nm)chime();
+}
+function intake(wave){for(const id of ids()){const s=st(id);if(s.lost)continue;
+  const first=R0(s.assigned*.75),n=wave===0?first:s.assigned-first;s.pop+=n;}
+  ev(wave===0?'Sirens. Shelters opening; first wave of people inside.':'Intake complete. Doors sealed region-wide.');}
+function attack(){
+  S.grid=false;S.defcon=1;
+  if(S.orders.length){S.flags.cancelled=S.orders.map(o=>`  ${o.q} x ${o.code} for ${o.site}`).join('\n')+'\n';S.budget+=S.orders.reduce((a,o)=>a+CAT[o.code].cost*o.q,0);S.orders=[];sendKey('depotcancel');}
+  intake(0);
+  const drill=S.flags.drill||[];let worst=null,wd=-1;
+  for(const id of ids()){const s=st(id),dmg=(18+rnd()*42)*(1-s.prot)*Math.sqrt(s.d0/12)*(drill.includes(id)?.6:1);s.hull=R0(100-dmg);if(id!=='CC'&&dmg>wd){wd=dmg;worst=id;}}
+  if(worst){const s=st(worst);s.water=R0(s.water*.45);s.leak=R0(120+250*(1-s.prot));s.gen=Math.max(0,s.gen-25);s.morale-=drill.includes(worst)?4:14;S.flags.hit=worst;}
+  const others=liveShelters().filter(i=>i!==worst).sort(()=>rnd()-.5);
+  if(others[0]&&rnd()<.65){st(others[0]).air-=20;st(others[0]).morale-=5;S.flags.fire=others[0];}
+  let cuts=0;for(const l of S.links){const roll=rnd(),f=1-l.rel;if(roll<f*.75){l.ok=false;l.hp=0;cuts++;}else if(roll<f*1.6){l.hp=R0(35+rnd()*45);}}
+  if(!cuts&&S.links.length){const l=S.links.slice().sort((a,b)=>a.rel-b.rel)[0];if(rnd()<1-l.rel+.2){l.ok=false;l.hp=0;}}
+  ev('DEFCON 1. Detonations in sector. Commercial power lost.');
+  if(worst)ev(`${worst} hit hardest: hull ${st(worst).hull}%, main tank ruptured.`);
+  const cl=S.links.filter(l=>!l.ok).map(linkName);if(cl.length)ev(`Tunnels severed: ${cl.join(', ')}.`);
+}
+function secondShock(){const c=liveShelters().filter(i=>i!==S.flags.hit&&st(i).gcap).sort((a,b)=>st(a).prot-st(b).prot)[0];if(!c)return;
+  const s=st(c);s.gen=Math.max(0,s.gen-45);S.flags.genloss=c;
+  const l=S.links.filter(l=>l.ok&&(l.a===c||l.b===c)).sort((a,b)=>a.rel-b.rel)[0];if(l&&rnd()<1-l.rel+.15){l.ok=false;l.hp=0;S.flags.genlossCut=linkName(l);}
+  ev(`Second shock: ${c} generator damaged${S.flags.genlossCut?`, ${S.flags.genlossCut} severed`:''}.`);}
+function randomEvent(){if(rnd()>.4)return;const live=liveShelters();if(!live.length)return;const id=live[Math.floor(rnd()*live.length)],s=st(id),r=rnd();
+  if(r<.22){s.air=clamp(s.air-10,0,100);s.morale-=5;ev(`Electrical fire at ${id}, put out. Air -10.`);}
+  else if(r<.42){s.leak+=120;s.water=Math.max(0,s.water-700);ev(`${id} tank seam split: -700 L, still leaking.`);}
+  else if(r<.58&&s.gcap){s.gen=Math.max(0,s.gen-15);ev(`${id} generator tripped and restarted rough.`);}
+  else if(r<.72&&s.scrubCap){s.scrub=Math.max(0,s.scrub-15);ev(`${id} scrubber fan bearing failing.`);}
+  else{const ok=S.links.filter(l=>l.ok&&l.hp>40);if(ok.length){const w=ok.map(l=>1-l.rel+.05),tot=w.reduce((a,b)=>a+b,0);let x=rnd()*tot,k=0;while(x>w[k]){x-=w[k];k++;}const l=ok[Math.min(k,ok.length-1)];
+    l.hp=Math.max(20,l.hp-R0(30+rnd()*30));ev(`Ground settling in the ${linkName(l)} tunnel (${R0(l.rock*100)}% rock): now ${l.hp}% capacity.`);}}}
+function alerts(){if(!war())return;const N=compute();
+  for(const id of liveShelters()){const s=st(id),n=N[id],F=S.flags,sh=n.wnet<0?Math.floor(s.water/-n.wnet):99;
+    if(sh<4&&!F['w'+id]){F['w'+id]=1;send({from:id,subj:`WATER: ${sh} SHIFTS LEFT`,body:`Control,\n\n${cap1(s.name)} holds ${num(s.water)} L. ${s.pop} people use ${num(n.use)} L a shift; filtration recovers ${num(n.rec)}.${s.leak?` A leak costs ${s.leak} L a shift; a water plant overhaul would seal it.`:''} Net ${sgn(R0(n.wnet))} L a shift.\n\nRequesting a water flow by any line that still holds.\n${sig(id)}`});}
+    if(sh>8)F['w'+id]=0;
+    if(s.air<62&&!F['a'+id]){F['a'+id]=1;send({from:id,subj:`AIR QUALITY ${R0(s.air)}%`,body:`Control,\n\nAir is ${R0(s.air)}%. ${s.pop} people need ${num(n.need)} CFM; we are getting ${num(n.supply)}. Below 40% people start dying.\n\nOptions: an air flow by duct, LiOH (we hold ${s.lioh}), power for the scrubbers, or an overhaul.\n${sig(id)}`});}
+    if(s.air>78)F['a'+id]=0;
+    if(n.scrubF<1&&s.scrubCap&&!F['p'+id]){F['p'+id]=1;send({from:id,subj:'POWER SHORTFALL',body:`Control,\n\nWe have ${R0(n.avail)} kW against ${R0(n.load)} kW of load. Scrubbers at ${R0(n.scrubF*100)}%, water plant at ${R0(n.plantF*100)}%. Generator ${R0(s.gen)}%, fuel ${num(s.fuel)} L.\n${sig(id)}`});}
+    if(n.scrubF>=1&&n.plantF>=1)F['p'+id]=0;
+    if(s.gcap&&s.fuel<n.burn*3&&s.fuel>0&&!F['f'+id]){F['f'+id]=1;send({from:id,subj:`FUEL ${num(s.fuel)} L`,body:`Control,\n\nDiesel is down to ${num(s.fuel)} L. We burn ${num(n.burn)} L a shift.\n${sig(id)}`});}
+    if(s.food<n.foodUse*4&&!F['r'+id]){F['r'+id]=1;send({from:id,subj:'FOOD RUNNING OUT',body:`Control,\n\n${num(s.food)} person-days of rations left for ${s.pop} people. We have cut portions.\n${sig(id)}`});}}}
+
+/* ================= operations: map ================= */
+const CW=58,CH=64;
+function cardPos(id){const s=st(id),px=s.x*4+2,py=s.y*4+2;return [clamp(px-29,1,640-CW-1),clamp(py-36,1,360-CH-1),px,py];}
+function gauge(x,y,v,c,blink,t){F(x,y,6,42,'#0f0b15');F(x+1,y+1,4,40,'#15111d');const h=R0(clamp(v,0,1)*40);const cc=blink&&!reduced&&(t/400|0)%2?'#ec4b3f':c;if(h>0){F(x+1,y+41-h,4,h,cc);F(x+1,y+41-h,4,1,'#ffffff66');}}
+function arrow(x,y,up,c){if(up){F(x+2,y,1,1,c);F(x+1,y+1,3,1,c);}else{F(x+1,y,3,1,c);F(x+2,y+1,1,1,c);}}
+function fitText(str,maxW){const c=TG.c,k=TG.k;c.font=`600 ${Math.max(10,Math.round(9.5*k))}px 'IBM Plex Sans Condensed','Arial Narrow',sans-serif`;if(c.measureText(str).width<=maxW*k)return str;while(str.length>3&&c.measureText(str+'.').width>maxW*k)str=str.slice(0,-1);return str.trimEnd()+'.';}
+function drawCard(id,t){
+  const s=st(id),n=UI.N[id],[x0,y0]=cardPos(id),stt=siteStatus(s,n),dark=s.lost||s.evac;
+  const sel=UI.sel===id&&UI.selLink===null,hov=UI.hover===id||(UI.drag&&UI.drag.over===id&&UI.drag.from!==id);
+  F(x0+2,y0+2,CW,CH,'#0c091088');
+  if(sel||hov||UI.pick===id){F(x0-2,y0-2,CW+4,CH+4,UI.drag&&UI.drag.over===id?'#ffffff':sel||UI.pick===id?'#f2b33d':'#6d6290');}
+  F(x0,y0,CW,CH,'#0f0b15');F(x0+1,y0+1,CW-2,CH-2,dark?'#201b28':'#2b2438');F(x0+1,y0+1,CW-2,1,'#4a4060');F(x0+1,y0+1,1,CH-2,'#4a4060');
+  F(x0+1,y0+1,CW-2,10,dark?'#2a2433':'#3a3050');txt(fitText(`${id} ${s.name}`,CW-12),x0+3,y0+1,dark?'#7d7490':'#efe6cf');
+  const lc=stt==='OK'?'#77d65b':stt==='WARN'?'#f2b33d':stt==='CRIT'?((t/350|0)%2&&!reduced?'#5a1d1a':'#ec4b3f'):'#5c5470';F(x0+CW-7,y0+3,5,5,'#0f0b15');F(x0+CW-6,y0+4,3,3,lc);
+  const sx=x0+3,sy=y0+13;F(sx-1,sy,22,2,'#5d5e6b');F(sx,sy+2,20,40,'#8b8c99');
+  let bg=s.air>=80?'#24494f':s.air>=60?'#4d5228':'#5a2626';if(dark)bg='#141019';else if(!S.grid&&n.baseF<1)bg=(t/300|0)%3===0&&!reduced?'#0e0b13':'#1a1520';
+  F(sx+2,sy+2,16,38,bg);for(const fy of [sy+11,sy+20,sy+29])F(sx+2,fy,16,1,'#8b8c99');
+  if(!dark){const lit=S.grid||n.baseF>=1;for(const fy of [sy+2,sy+12,sy+21])F(sx+9,fy,2,1,lit?'#ffe08a':'#3a3050');
+    const slots=63,cap=Math.max(1,s.cap),fill=R0(Math.min(s.pop,cap)/cap*slots),over=Math.min(slots-fill,R0(Math.max(0,s.pop-cap)/cap*slots));
+    for(let k=0;k<fill+over;k++){const fl=2-Math.floor(k/21),sl=k%21,row=Math.floor(sl/7),col=sl%7;F(sx+3+col*2,sy+4+fl*9+row*2,1,1,k>=fill?'#ec4b3f':['#efe6cf','#e8c48a','#d99a6c'][k%3]);}}
+  F(sx+2,sy+31,16,9,'#15111d');const wl=R0(clamp(s.wcap?s.water/s.wcap:0,0,1)*8);if(wl)F(sx+2,sy+40-wl,16,wl,'#3c7fd0');
+  if(s.leak>0&&!dark&&!reduced&&(t/250|0)%2)F(sx+6,sy+42,1,2,'#7cc0ff');
+  const W_=war(),wsh=n.wnet<0?s.water/-n.wnet:99;
+  const vals=[[s.air/100,COL.A,W_&&s.air<50,W_?n.airDelta:0],[s.wcap?s.water/s.wcap:0,COL.W,W_&&wsh<3,W_?n.wnet:0],[S.grid?1:(n.load?n.avail/n.load:1),COL.P,!S.grid&&n.baseF<1,!S.grid&&n.bal<0?-1:0],[s.fcap?s.fuel/s.fcap:0,COL.F,!S.grid&&s.gcap&&s.fuel<n.burn*3,0]];
+  vals.forEach(([v,c,bl,tr],k)=>{const gx=x0+27+k*7;gauge(gx,y0+13,dark?0:v,c,bl,t);if(!dark&&Math.abs(tr)>=1)arrow(gx,y0+10,tr>0,tr>0?'#77d65b':'#ec4b3f');});
+  txt(dark?(s.evac?'EVACUATED':'NO CARRIER'):`${s.pop}/${s.cap}`,x0+3,y0+55,dark?'#a197b4':s.pop>s.cap?'#ec4b3f':'#efe6cf');
+}
+function linkPts(i){const l=S.links[i],A=st(l.a),B=st(l.b);return [A.x*4+2,A.y*4+2,B.x*4+2,B.y*4+2];}
+function drawTunnel(i,t){
+  const l=S.links[i],[ax,ay,bx,by]=linkPts(i),cut=!l.ok||l.hp<=0,hurt=!cut&&l.hp<100,dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy),nx=-dy/L,ny=dx/L;
+  if(UI.selLink===i||UI.hoverLink===i)lineThick(ax,ay,bx,by,13,UI.selLink===i?'#f2b33d':'#6d6290');
+  lineThick(ax,ay,bx,by,11,'#0f0b15');lineThick(ax,ay,bx,by,9,cut?'#191420':'#2c2438');
+  const OFF={W:-3,A:0,P:3},R=UI.N._R[i];
+  for(const k of ['W','A','P'])if(l.cap[k])lineThick(ax+nx*OFF[k],ay+ny*OFF[k],bx+nx*OFF[k],by+ny*OFF[k],2,cut?'#2a2433':DIM[k]);
+  if(cut||hurt){const r=mul(100+i),n=cut?50:R0((100-l.hp)/3);for(let k=0;k<n;k++){const u=r(),o=(r()-.5)*10;F(ax+dx*u+nx*o,ay+dy*u+ny*o,r()<.5?2:1,1,'#0f0b15');}}
+  if(!cut)for(const k of ['W','A','P']){const fw=R['fw'+k],bw=R['bw'+k];if(!fw&&!bw)continue;const ph=reduced?0:(t*.018)%9;
+    for(let d=ph;d<L;d+=9){if(fw){const u=d/L;F(ax+dx*u+nx*OFF[k]-1,ay+dy*u+ny*OFF[k]-1,2,2,COL[k]);}if(bw){const u=1-d/L;F(ax+dx*u+nx*OFF[k]-1,ay+dy*u+ny*OFF[k]-1,2,2,COL[k]);}}}
+}
+function drawChip(i,t){const l=S.links[i],[ax,ay,bx,by]=linkPts(i),x=(ax+bx)/2,y=(ay+by)/2,cut=!l.ok||l.hp<=0,hurt=!cut&&l.hp<100,R=UI.N._R[i];
+  const rep=ids().some(id=>st(id).repair?.link===linkName(l));
+  F(x-14,y-8,28,16,cut?(rep?'#f2b33d':((t/500|0)%2&&!reduced?'#5a1d1a':'#ec4b3f')):hurt||UI.selLink===i?'#f2b33d':'#4a4060');F(x-13,y-7,26,14,'#1b1624');
+  if(cut){txt(rep?'FIX':'CUT',x,y-4,rep?'#f2b33d':'#ec4b3f','center');return;}
+  ['W','A','P'].forEach((k,j)=>{const yy=y-5+j*4;if(!l.cap[k]){F(x-10,yy,20,2,'#2a2433');return;}const c=R.cap[k],u=c-R.left[k];F(x-10,yy,20,2,DIM[k]);if(u>0)F(x-10,yy,Math.max(1,R0(20*u/c)),2,u>=c-1?'#ffffff':COL[k]);});}
+function drawOps(t){
+  blit(TER);F(0,0,640,360,'rgba(16,11,26,.6)');blit(ROADS,.45);
+  for(const tw of WD.towns)txtS(tw.name,tw.x*4,tw.y*4+10,'#8a8099','center');
+  for(let i=0;i<S.links.length;i++)drawTunnel(i,t);
+  for(const id of ids())drawCard(id,t);
+  for(let i=0;i<S.links.length;i++)drawChip(i,t);
+  const d=UI.drag;if(d&&d.moved&&d.from){const s=st(d.from),ax=s.x*4+2,ay=s.y*4+2,L=Math.hypot(d.x-ax,d.y-ay),ph=reduced?0:(t*.03)%6;
+    for(let k=ph;k<L;k+=6){const x=ax+(d.x-ax)*k/L,y=ay+(d.y-ay)*k/L;F(x-1,y-1,3,3,'#0f0b15');F(x,y,2,2,'#f2b33d');}}
+  txtS(war()?'SEALED':'VENTED - ON GRID',634,349,war()?((t/600|0)%2||reduced?'#ec4b3f':'#5a1d1a'):'#8a8099','right');
+}
+function opsNodeAt(x,y){for(const id of ids().slice().reverse()){const [x0,y0]=cardPos(id);if(x>=x0&&x<=x0+CW&&y>=y0&&y<=y0+CH)return id;}return null;}
+function opsLinkAt(x,y){let best=null,bd=7;S.links.forEach((l,i)=>{const [ax,ay,bx,by]=linkPts(i),dx=bx-ax,dy=by-ay,u=clamp(((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy),0,1),d=Math.hypot(ax+dx*u-x,ay+dy*u-y);if(d<bd){bd=d;best=i;}});return best;}
+function opsDown(x,y){UI.drag={from:opsNodeAt(x,y),x,y,sx:x,sy:y,moved:false,over:null};}
+function opsMove(e,x,y){const d=UI.drag;if(d){d.x=x;d.y=y;if(d.from&&Math.hypot(x-d.sx,y-d.sy)>6)d.moved=true;d.over=opsNodeAt(x,y);}
+  UI.hover=opsNodeAt(x,y);UI.hoverLink=UI.hover?null:opsLinkAt(x,y);cv.style.cursor=UI.hover?(d&&d.moved?'copy':'grab'):UI.hoverLink!=null?'pointer':'default';
+  let h=null;
+  if(d&&d.moved)h=d.over&&d.over!==d.from?`Release to send from <b>${d.from}</b> to <b>${d.over}</b>`:'Drag to the shelter that should receive';
+  else if(UI.hover){const s=st(UI.hover),n=UI.N[UI.hover];h=`<b>${s.id} ${esc(s.name)}</b><br>${s.pop} / ${s.cap} people · air ${R0(s.air)}%${war()?` (${sgn(R0(n.airDelta))})`:''}<br>water ${num(s.water)} L${war()?` (${sgn(R0(n.wnet))}/shift)`:''}<br>${S.grid?'on grid':`power ${R0(n.avail)} of ${R0(n.load)} kW`} · fuel ${num(s.fuel)} L · food ${num(s.food)}<br><span class="dim">Click for detail · drag to another shelter to send</span>`;}
+  else if(UI.hoverLink!=null){const l=S.links[UI.hoverLink],R=UI.N._R[UI.hoverLink];h=`<b>${linkName(l)} tunnel</b> · ${!l.ok||l.hp<=0?'<span class="neg">severed</span>':l.hp+'%'} · ${l.depth} m, ${R0(l.rock*100)}% rock<br>`+['W','A','P'].map(k=>l.cap[k]?`${RNAME[k].toLowerCase()} ${num(R.cap[k]-R.left[k])} / ${num(R.cap[k])} ${UNIT[k]}`:`no ${RNAME[k].toLowerCase()}`).join('<br>');}
+  placeTip(e,h);}
+function opsUp(x,y){const d=UI.drag;UI.drag=null;if(!d)return;
+  if(d.moved){const to=opsNodeAt(x,y);if(to&&to!==d.from)openTransfer(d.from,to);return;}
+  const id=opsNodeAt(x,y);
+  if(UI.pick){if(id&&id!==UI.pick){const f=UI.pick;setPick(null);openTransfer(f,id);}else if(!id)setPick(null);return;}
+  if(id){UI.sel=id;UI.selLink=null;UI.tab='shelter';blip();refresh();return;}
+  const li=opsLinkAt(x,y);if(li!=null){UI.selLink=li;UI.tab='shelter';blip();refresh();}}
+
+/* ================= operations: panels ================= */
+function opsSide(){
+  if(UI.tab==='log')return `<div class="sect"><span class="lbl">Event log</span><ul class="evlist">${S.log.slice().reverse().map(([sh,t])=>`<li><span class="dim">${shortT(sh)}</span> ${esc(t)}</li>`).join('')||'<li>Nothing yet.</li>'}</ul></div>`;
+  if(UI.tab==='flows')return flowsPanel();
+  return UI.selLink!=null&&S.links[UI.selLink]?linePanel(UI.selLink):shelterPanel(UI.sel&&st(UI.sel)?UI.sel:'CC');
+}
+function shelterPanel(id){
+  const s=st(id),n=UI.N[id],stt=siteStatus(s,n),dark=s.lost||s.evac,L=n.L,W_=war();
+  let h=`<div class="sect"><div class="row"><span class="big">${id} ${esc(s.name)}</span><span class="chip ${stt}">${stt}</span></div>
+    <div class="row dim"><span>${esc(s.warden==='YOU'?'Your post':s.warden)} · ${s.depth} m deep</span><span>${s.busy?'Staff: '+esc(s.busy.toLowerCase()):'Staff idle'}</span></div>
+    ${dark?'':`<div class="actions"><button class="btn" data-act="send" type="button">Send water, air or power…</button></div>`}</div>
+  <div class="sect"><div class="row"><span class="lbl">People</span><span class="num">${s.pop} / ${s.cap} beds</span></div>${meter(s.pop,Math.max(s.cap,s.pop),s.pop>s.cap?'var(--bad)':'var(--paper)',s.pop>s.cap?s.cap/s.pop*100:null)}
+    <div class="row dim" style="font-size:14px"><span>Staff ${s.staff}${!W_?` · ${s.assigned} on the intake roster`:''}</span><span>Dead ${s.dead} · Morale ${R0(s.morale)}% · Hull ${R0(s.hull)}%</span></div></div>`;
+  if(dark)return h;
+  h+=`<div class="sect"><div class="row"><span class="lbl" style="color:var(--air)">Air quality</span><span class="big num">${R0(s.air)}%${W_?` <small class="${n.airDelta<0?'neg':'pos'}">${sgn(R0(n.airDelta))}/shift</small>`:''}</span></div>${meter(s.air,100,s.air<50?'var(--bad)':'var(--air)',40)}`;
+  if(W_)h+=`<div class="ledger">${L_(`Scrubbed (${R0(s.scrub)}% condition, ${R0(n.scrubF*100)}% powered)`,'+'+num(n.scrubOut))}${n.ain?L_('Duct in','+'+num(n.ain),'pos'):''}${n.aout?L_('Duct out','−'+num(n.aout),'neg'):''}${L_(`Needed by ${s.pop} people`,'−'+num(n.need))}<span class="tot">Balance, CFM</span><span class="tot num ${n.supply<n.need?'neg':'pos'}">${sgn(R0(n.supply-n.need))}</span></div>`;
+  else{const p=sealedProj(id);h+=`<div class="dim" style="font-size:14px">Vented to the surface until the doors seal. Then ${p.p} people need ${num(p.p*CFM_PER_PERSON)} CFM; the scrubbers at ${R0(s.scrub)}% give ${num(s.scrubCap*s.scrub/100)}.${p.air<1?' <span class="neg">Short.</span>':''}</div>`;}
+  h+='</div>';
+  const sh=n.wnet<0?Math.floor(s.water/-n.wnet):null;
+  h+=`<div class="sect"><div class="row"><span class="lbl" style="color:var(--water)">Water</span><span class="big num">${num(s.water)} <small class="dim">/ ${num(s.wcap)} L</small></span></div>${meter(s.water,s.wcap,'var(--water)')}
+    <div class="ledger">${W_?L_(`Used by ${s.pop} people`,'−'+num(n.use))+L_(`Recycled by filtration (${R0(n.recPct*100)}%${s.plantCap?`, plant handles ${num(s.plantCap)} L`:', no plant'})`,'+'+num(n.rec),'pos'):L_('City water until the doors seal','0','dim')}${n.win?L_('Flow in','+'+num(n.win),'pos'):''}${n.wout?L_('Flow out','−'+num(n.wout),'neg'):''}${s.leak&&W_?L_('Tank leak','−'+num(s.leak),'neg'):''}<span class="tot">Net per shift${sh!=null?` (${sh} shifts left)`:''}</span><span class="tot num ${n.wnet<0?'neg':'pos'}">${sgn(R0(n.wnet))}</span></div></div>`;
+  const total=Math.max(n.load,S.grid?0:n.avail,1),seg=(v,f,c,lab)=>`<span title="${lab}" style="width:${v*f/total*100}%;--c:${c}"></span>${f<1?`<span class="off" style="width:${v*(1-f)/total*100}%"></span>`:''}`;
+  h+=`<div class="sect"><div class="row"><span class="lbl" style="color:var(--amber)">Power</span><span class="big num">${S.grid?'Grid':`${R0(n.avail)} <small class="dim">of ${R0(n.load)} kW needed</small>`}</span></div>
+    <div class="stack">${seg(L.base,n.baseF,'var(--paper)','Lights and medical')}${seg(L.scrub,n.scrubF,'var(--air)','Scrubbers')}${seg(L.plant,n.plantF,'var(--water)','Water plant')}${S.grid?'':`<b style="left:calc(${clamp(n.avail/total,0,1)*100}% - 2px)"></b>`}</div>
+    <div class="ledger">${S.grid?L_('Commercial grid','on','dim')+L_(`Generators on standby (${R0(s.gen)}%)`,`${R0(s.gcap*s.gen/100)} kW`,'dim'):L_(`Generators (${R0(s.gen)}% of ${s.gcap} kW)`,'+'+R0(n.gen))+(n.pin?L_('Flow in','+'+R0(n.pin),'pos'):'')+(n.pout?L_('Flow out','−'+R0(n.pout),'neg'):'')}
+      ${L_(`Lights + medical${n.baseF<1?` (${R0(n.baseF*100)}%)`:''}`,'−'+R0(L.base))}${L_(`Scrubbers${n.scrubF<1&&L.scrub?` (${R0(n.scrubF*100)}%)`:''}`,'−'+R0(L.scrub))}${L_(`Pumps + filtration${n.plantF<1?` (${R0(n.plantF*100)}%)`:''}`,'−'+R0(L.plant))}
+      ${S.grid?'':`<span class="tot">Balance, kW</span><span class="tot num ${n.bal<0?'neg':'pos'}">${sgn(R0(n.bal))}</span>`}</div>
+    <div class="row"><span class="lbl" style="color:var(--fuel)">Diesel</span><span class="num">${num(s.fuel)} / ${num(s.fcap)} L${S.grid?'':` · ${num(n.burn)}/shift${n.burn?` (${Math.floor(s.fuel/n.burn)} shifts)`:''}`}</span></div>${meter(s.fuel,s.fcap,'var(--fuel)')}
+    <div class="row"><span class="lbl" style="color:var(--paper)">Food</span><span class="num">${num(s.food)} / ${num(s.foodCap)} person-days${W_&&n.foodUse?` · ${Math.floor(s.food/n.foodUse)} shifts`:''}</span></div>${meter(s.food,s.foodCap||1,COL.FOOD)}</div>`;
+  const can=!s.busy&&s.spares>0;
+  h+=`<div class="sect"><div class="row"><span class="lbl">Equipment</span><span class="dim" style="font-size:14px">${kits(s.spares)} · ${s.lioh} LiOH</span></div><div class="equip">`;
+  for(const [k,nm,has] of [['gen','Generators',s.gcap],['scrub','Scrubbers',s.scrubCap],['plant','Water plant',s.plantCap]])h+=has?`<span>${nm}</span>${meter(s[k],100,s[k]<30?'var(--bad)':s[k]<60?'var(--warn)':'var(--ok)')}<button class="btn small" data-act="fix" data-sys="${k}" type="button" ${can?'':'disabled'}>Overhaul</button>`:`<span class="dim">${nm}</span><span class="dim">none built</span><span></span>`;
+  h+=`</div><div class="actions"><button class="btn small" data-act="lioh" type="button" ${s.lioh?'':'disabled'}>Open LiOH pallet (+15 air)</button></div></div>`;
+  h+=`<div class="sect"><span class="lbl">Tunnels</span><div class="lines">${S.links.map((l,i)=>[l,i]).filter(([l])=>l.a===id||l.b===id).map(([l,i])=>lineItem(l,i)).join('')||'<span class="dim">No tunnels. This shelter is on its own.</span>'}</div></div>`;
+  return h;}
+function lineItem(l,i){const R=UI.N._R[i],cut=!l.ok||l.hp<=0,rep=ids().some(x=>st(x).repair?.link===linkName(l));
+  return `<div class="lineitem" data-line="${i}"><b>${linkName(l)}</b><div class="minibars">${['W','A','P'].map(k=>l.cap[k]?`<div class="mb"><i style="width:${R.cap[k]?(R.cap[k]-R.left[k])/R.cap[k]*100:0}%;--c:${COL[k]}"></i></div>`:'<div class="mb" style="opacity:.3"></div>').join('')}</div><span class="${cut?'neg':l.hp<100?'':'dim'}" style="font-size:13px">${cut?(rep?'repairing':'severed'):l.hp<100?l.hp+'%':'ok'}</span></div>`;}
+function routeMax(t,a,b){const r=staticRoute(t,a,b);if(!r)return 0;return Math.floor(Math.min(...r.links.map(i=>S.links[i].cap[t]*S.links[i].hp/100)));}
+function linePanel(i){const l=S.links[i],R=UI.N._R[i],cut=!l.ok||l.hp<=0,rep=ids().find(x=>st(x).repair?.link===linkName(l));
+  let h=`<div class="sect"><div class="row"><span class="big">${linkName(l)} tunnel</span><span class="chip ${cut?'CRIT':l.hp<100?'WARN':'OK'}">${cut?'SEVERED':l.hp+'%'}</span></div>
+    <div class="dim">${num(l.len)} m at ${l.depth} m deep, ${R0(l.rock*100)}% through rock. Built reliability ${R0(l.rel*100)}%.${cut?' Carries nothing until repaired.':l.hp<100?` Damaged: carries ${l.hp}% of its rating.`:''}</div>
+    <div class="actions"><button class="btn small" data-act="xf" data-a="${l.a}" data-b="${l.b}" type="button">Send ${l.a} → ${l.b}</button><button class="btn small" data-act="xf" data-a="${l.b}" data-b="${l.a}" type="button">Send ${l.b} → ${l.a}</button></div></div><div class="sect"><span class="lbl">Capacity in use this shift</span>`;
+  for(const k of ['W','A','P']){if(!l.cap[k]){h+=`<div class="row dim"><span>${cap1(RNAME[k])}</span><span>no line laid</span></div>`;continue;}const u=R.cap[k]-R.left[k];
+    h+=`<div class="row"><span style="color:${COL[k]}">${cap1(RNAME[k])}</span><span class="num">${num(u)} / ${num(R.cap[k])} ${UNIT[k]}</span></div>${meter(u,R.cap[k]||1,COL[k])}`;}
+  h+='</div>';
+  if(cut||l.hp<100){h+=`<div class="sect"><span class="lbl">Repair</span>`;
+    h+=rep?`<div>${rep} crew is on it: ${st(rep).repair.left} shift${st(rep).repair.left>1?'s':''} left.</div>`:`<div class="dim" style="font-size:14px">Takes a spare kit and the crew's work for ${cut?'2 shifts':'1 shift'}.</div><div class="actions">${[l.a,l.b].map(x=>{const s=st(x),ok=!s.lost&&!s.evac&&!s.busy&&s.spares>0;return `<button class="btn small" data-act="repair" data-from="${x}" type="button" ${ok?'':'disabled'}>Crew from ${x} (${kits(s.spares)})</button>`;}).join('')}</div>`;h+='</div>';}
+  return h;}
+function flowsPanel(){let h=`<div class="sect"><div class="row"><span class="lbl">Active flows</span><button class="btn small" data-act="newx" type="button">New transfer…</button></div>`;
+  if(!S.flows.length)h+='<div class="dim">No flows yet. Drag from one shelter to another on the map.</div>';
+  for(const f of S.flows){const mx=Math.max(f.amt,routeMax(f.type,f.from,f.to)),step={W:100,A:10,P:5}[f.type];
+    h+=`<div class="flow" style="border-left:6px solid ${COL[f.type]}"><b>${cap1(RNAME[f.type])} ${f.from} → ${f.to}</b><button class="btn small danger" data-act="stop" data-id="${f.id}" type="button">Stop</button>
+      <input type="range" id="fr${f.id}" data-fid="${f.id}" min="0" max="${mx}" step="${step}" value="${f.amt}" style="--c:${COL[f.type]}" aria-label="Flow amount">
+      <span class="num">Set ${num(f.amt)} ${UNIT[f.type]} · moving ${num(f.actual)}, ${num(f.got)} arrives</span><span class="${f.note==='LIVE'||f.note==='STANDBY'?'dim':'neg'}" style="font-size:13px">${(f.note||'').toLowerCase()}</span>
+      <span class="dim" style="grid-column:1/-1;font-size:13px">${f.via?'via '+f.via.replace(/-/g,' → '):''}</span></div>`;}
+  return h+`</div><div class="sect"><span class="lbl">All tunnels</span><div class="lines">${S.links.map((l,i)=>lineItem(l,i)).join('')||'<span class="dim">No tunnels were built.</span>'}</div></div>`;}
+function opsSideClick(e){const b=e.target.closest('[data-act]'),li=e.target.closest('[data-line]');
+  if(b&&!b.disabled){const a=b.dataset.act,id=UI.sel||'CC';
+    if(a==='send')openTransfer(id,null);if(a==='fix')act(fix(id,b.dataset.sys));if(a==='lioh')act(useLioh(id));if(a==='order')act(order(b.dataset.code,id,1));
+    if(a==='xf')openTransfer(b.dataset.a,b.dataset.b);if(a==='repair'){const l=S.links[UI.selLink];act(repair(l.a,l.b,b.dataset.from));}
+    if(a==='stop'){const f=S.flows.find(x=>x.id===+b.dataset.id);act(setFlow(f.type,f.from,f.to,0));}if(a==='newx')openTransfer(id,null);return;}
+  if(li){UI.selLink=+li.dataset.line;UI.tab='shelter';blip();refresh();}}
+function bindFlows(){document.querySelectorAll('#side input[data-fid]').forEach(inp=>{
+  inp.addEventListener('input',()=>{const f=S.flows.find(x=>x.id===+inp.dataset.fid);inp.nextElementSibling.textContent=`Set ${num(+inp.value)} ${UNIT[f.type]} · release to apply`;});
+  inp.addEventListener('change',()=>{const f=S.flows.find(x=>x.id===+inp.dataset.fid);act(setFlow(f.type,f.from,f.to,+inp.value));});});}
+
+/* ---------------- transfer dialog ---------------- */
+function openTransfer(from,to){
+  if(!to){to=neighbors(from).find(x=>!st(x).lost&&!st(x).evac)||ids().find(x=>x!==from);}
+  if(!to||to===from){toast('There is no other shelter to send to.',true);return;}
+  const cur=t=>(S.flows.find(f=>f.type===t&&f.from===from&&f.to===to)||{}).amt||0;
+  UI.modal={type:'xfer',from,to,vals:{W:cur('W'),A:cur('A'),P:cur('P')},orig:{W:cur('W'),A:cur('A'),P:cur('P')}};setPick(null);renderTransfer();}
+function preview(m){const save=S.flows.map(f=>({...f}));
+  for(const t of ['W','A','P']){const ex=S.flows.find(f=>f.type===t&&f.from===m.from&&f.to===m.to);if(ex)ex.amt=m.vals[t];else if(m.vals[t]>0)S.flows.push({id:-1,type:t,from:m.from,to:m.to,amt:m.vals[t]});}
+  S.flows=S.flows.filter(f=>f.amt>0);const N=compute(),res={};for(const t of ['W','A','P']){const f=S.flows.find(f=>f.type===t&&f.from===m.from&&f.to===m.to);res[t]=f?{actual:f.actual,got:f.got,note:f.note}:null;}
+  S.flows=save;compute();return {N,res};}
+function renderTransfer(){const m=UI.modal;
+  const opt=sel=>ids().filter(i=>!st(i).lost&&!st(i).evac).map(i=>`<option value="${i}" ${i===sel?'selected':''}>${i} ${esc(st(i).name)}</option>`).join('');
+  let h=`<h2>Send between shelters</h2><div class="row" style="justify-content:flex-start;gap:10px"><label class="lbl" for="xFrom">From</label><select id="xFrom" class="btn">${opt(m.from)}</select><button class="btn small" id="xSwap" type="button" title="Swap">⇄</button><label class="lbl" for="xTo">To</label><select id="xTo" class="btn">${opt(m.to)}</select></div>`;
+  for(const t of ['W','A','P']){const r=staticRoute(t,m.from,m.to),mx=r?Math.max(m.vals[t],routeMax(t,m.from,m.to)):0,step={W:100,A:10,P:5}[t],nm=cap1(RNAME[t]);
+    if(!r){h+=`<div class="xres na"><div class="top"><i class="ico" style="--c:${COL[t]}"></i><h3>${nm}</h3></div><div class="dim">No working ${t==='W'?'water main':t==='A'?'air duct':'power cable'} connects these shelters.</div></div>`;continue;}
+    h+=`<div class="xres"><div class="top"><i class="ico" style="--c:${COL[t]}"></i><h3>${nm}</h3><input type="number" id="xn${t}" min="0" max="${mx}" step="${step}" value="${m.vals[t]}" aria-label="${nm} amount"><span class="dim">${UNIT[t]}</span></div>
+      <input type="range" id="xr${t}" min="0" max="${mx}" step="${step}" value="${m.vals[t]}" style="--c:${COL[t]}" aria-label="${nm} slider"><div class="row dim" style="font-size:14px"><span>Route ${r.nodes.join(' → ')} · line limit ${num(mx)} ${UNIT[t]}</span><span>${spare(t,m.from)}</span></div><div id="xp${t}" style="font-size:14px"></div></div>`;}
+  h+=`<div class="fx" id="xfx"></div><div class="dim" style="font-size:13px">A flow repeats every shift until you change it.${S.grid?' Before the grid fails, air and power flows wait on standby; water flows run now.':''}</div>
+    <div class="foot"><button class="btn" id="xCancel" type="button">Cancel</button><button class="btn primary" id="xApply" type="button">Apply flows</button></div>`;
+  modal(h,760);
+  const re=()=>{const f=$('#xFrom').value,t=$('#xTo').value;openTransfer(f,t===f?null:t);};$('#xFrom').onchange=re;$('#xTo').onchange=re;
+  $('#xSwap').onclick=()=>openTransfer(m.to,m.from);$('#xCancel').onclick=closeModal;$('#xApply').onclick=applyTransfer;
+  for(const t of ['W','A','P']){const r=$('#xr'+t),n=$('#xn'+t);if(!r)continue;r.oninput=()=>{m.vals[t]=+r.value;n.value=r.value;updatePreview();};n.oninput=()=>{m.vals[t]=clamp(+n.value||0,0,+n.max);r.value=m.vals[t];updatePreview();};}
+  updatePreview();}
+function spare(t,id){const s=st(id),n=UI.N[id];if(t==='W')return `${id} holds ${num(s.water)} L`;if(S.grid)return 'standby until the grid fails';
+  if(t==='A'){const sp=R0(n.scrubOut-n.need);return sp>0?`${id} has ${num(sp)} CFM spare`:`<span class="neg">${id} has no spare air</span>`;}
+  const sp=R0(n.gen-n.load);return sp>0?`${id} has ${sp} kW spare`:`<span class="neg">${id} has no spare power</span>`;}
+function updatePreview(){const m=UI.modal,p=preview(m),N0=UI.N,N1=p.N;
+  for(const t of ['W','A','P']){const el=$('#xp'+t);if(!el)continue;const r=p.res[t];
+    el.innerHTML=!m.vals[t]?`<span class="dim">${m.orig[t]?'This will stop the current flow.':'No flow.'}</span>`:r?`Moves <b class="num">${num(r.actual)}</b> ${UNIT[t]}, <b class="num">${num(r.got)}</b> arrives after line losses. <span class="${r.note==='LIVE'||r.note==='STANDBY'?'pos':'neg'}">${r.note.toLowerCase()}</span>`:'';}
+  const side=id=>{const a=N0[id],b=N1[id],row=(lab,x,y,u)=>`<div class="row"><span>${lab}</span><span class="num">${x} → <b class="${y<x?'neg':y>x?'pos':''}">${y}</b>${u}</span></div>`;
+    return `<b>${id} ${esc(st(id).name)}</b>${war()?row('Air trend',R0(a.airDelta),R0(b.airDelta),'/sh'):''}${row('Water net',R0(a.wnet),R0(b.wnet),' L')}${S.grid?'':row('Power balance',R0(a.bal),R0(b.bal),' kW')}`;};
+  $('#xfx').innerHTML=`<div>${side(m.from)}</div><div>${side(m.to)}</div>`;}
+function applyTransfer(){const m=UI.modal,msgs=[];let ok=true;for(const t of ['W','A','P'])if(m.vals[t]!==m.orig[t]&&$('#xr'+t)){const [o,msg]=setFlow(t,m.from,m.to,m.vals[t]);ok=ok&&o;msgs.push(msg);}
+  closeModal();if(msgs.length){toast(msgs.join(' '),!ok);ok?blip():buzz();}else toast('No changes.');}
+
+/* ---------------- mail, report, end ---------------- */
+function openMail(id){if(!S||!S.mails.length){toast('No mail yet.');return;}if(id==null){const un=S.mails.find(x=>!x.read);id=un?un.id:S.mails[S.mails.length-1].id;}UI.modal={type:'mail',id};renderMail();}
+function renderMail(){const m=S.mails.find(x=>x.id===UI.modal.id);m.read=true;const list=[...S.mails].reverse();
+  let h=`<div class="row"><h2>Mail · ${S.mails.length} messages</h2><button class="btn small" id="mClose" type="button">Close</button></div>
+  <div class="mail"><div class="mlist" id="mlist" role="listbox" aria-label="Messages">${list.map(x=>`<div class="mitem${x.id===m.id?' sel':''}${!x.read?' unread':''}${x.flash?' flash':''}" data-mid="${x.id}" role="option" aria-selected="${x.id===m.id}"><span class="s">${esc(x.subj)}${x.opts&&x.resolved===null?' <span style="color:var(--amber)">?</span>':''}</span><span class="f">${esc(fromName(x.from))} · ${shortT(x.shift)}</span></div>`).join('')}</div>
+  <div class="reader"><div class="hd"><span class="lbl">From</span><span>${esc(fromFull(m.from))}</span><span class="lbl">Sent</span><span class="num">${dtg(m.shift)}</span><span class="lbl">Subject</span><b>${esc(m.subj)}</b></div><pre class="${m.flash?'flash':''}">${esc(m.body)}</pre>`;
+  if(m.opts){if(m.resolved===null)h+=`<div class="opts">${m.opts.map((o,i)=>`<button class="btn" data-ans="${i}" type="button">${i+1}. ${esc(o)}</button>`).join('')}</div>`;else h+=`<div><span class="lbl">You replied</span><div><b>${esc(m.opts[m.resolved])}</b></div><div class="dim">${esc(m.reply)}</div></div>`;}
+  h+=`<div class="actions">${S.sites[m.from]?`<button class="btn small" data-show="${m.from}" type="button">Show ${m.from} on the map</button>`:''}</div><div class="dim" style="font-size:13px">Up / Down: next message · ${m.opts&&m.resolved===null?'1–'+m.opts.length+': answer · ':''}Esc: close</div></div></div>`;
+  modal(h,1000);$('#mClose').onclick=closeModal;
+  $('#mlist').onclick=e=>{const it=e.target.closest('[data-mid]');if(it){UI.modal.id=+it.dataset.mid;blip();renderMail();}};
+  document.querySelectorAll('[data-ans]').forEach(b=>b.onclick=()=>answerMail(m,+b.dataset.ans));
+  const sb=document.querySelector('[data-show]');if(sb)sb.onclick=()=>{const id=sb.dataset.show;closeModal();UI.sel=id;UI.selLink=null;UI.tab='shelter';refresh();};
+  const sel=document.querySelector('.mitem.sel');if(sel)sel.scrollIntoView({block:'nearest'});renderBar();}
+function answerMail(m,i){if(m.resolved!==null)return;const fx=EFFECTS[m.key]?.[i];if(!fx)return;const [ok,msg]=fx(m);if(!ok){toast(msg,true);buzz();return;}
+  m.resolved=i;m.reply=msg;ev(`Answered ${m.from} "${m.subj}": ${m.opts[i]}.`,true);toast('Reply sent. '+msg);blip();UI.N=compute();renderMail();}
+function stepMail(d){const list=[...S.mails].reverse(),k=list.findIndex(x=>x.id===UI.modal.id),n=clamp(k+d,0,list.length-1);if(n!==k){UI.modal.id=list[n].id;tone(1500,.01,.015);renderMail();}}
+function openReport(){UI.modal={type:'report'};const nm=S.mails.filter(m=>m.shift===S.shift),ws=S.shift===WAR;
+  modal(`<h2 style="${ws?'color:var(--bad)':''}">${ws?'DEFCON 1 · Sirens':'Shift report'} · ${dtg(S.shift)}</h2><ul class="evlist">${S.events.map(e=>`<li>${esc(e)}</li>`).join('')||'<li class="dim">Quiet shift.</li>'}</ul>
+  ${nm.length?`<div class="sect"><span class="lbl">New mail</span><div class="opts">${nm.map(m=>`<button class="btn" data-open="${m.id}" type="button" style="${m.flash?'color:#ffb4a8':''}">${esc(fromName(m.from))}: ${esc(m.subj)}</button>`).join('')}</div></div>`:''}
+  <div class="foot"><button class="btn" id="rClose" type="button">Back to the board</button>${nm.length?'<button class="btn primary" id="rMail" type="button">Read mail</button>':''}</div>`);
+  $('#rClose').onclick=closeModal;if($('#rMail'))$('#rMail').onclick=()=>openMail(nm[0].id);document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openMail(+b.dataset.open));}
+function openEnd(){UI.modal={type:'end'};const won=S.over==='won';let alive=0,dead=0;
+  const rows=ids().map(id=>{const s=st(id);alive+=s.pop;dead+=s.dead;return `<tr><td>${id} ${esc(s.name)}</td><td class="num">${s.pop}</td><td class="num">${s.dead}</td><td>${s.evac?'Evacuated':s.lost?'<span class="neg">Lost</span>':'Holding'}</td></tr>`;}).join('');
+  const total=alive+dead,pct=total?alive/total:0,spent=buildTotals().sites+buildTotals().tun;
+  const rating=!won?'The board went dark before relief arrived.':pct>.98?'Every shelter held. Hollis will want to know how.':pct>.9?'The region held. Not everyone came up the elevators.':pct>.7?'Most came home. The tunnels remember the rest.':'Relief found more silence than voices.';
+  modal(`<h2>${won?`Relief convoy at Shelter Control · ${dtg(S.shift)}`:'Shelter Control has stopped transmitting'}</h2><table class="res"><thead><tr><th>Shelter</th><th>Alive</th><th>Dead</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="big">${num(alive)} of ${num(total)} people alive</div><div>${rating}</div><div class="dim">Construction cost ${mil(spent)} · ${money(spent/Math.max(1,alive))} per survivor.</div>
+  <div class="foot"><button class="btn" id="eBoard" type="button">Look at the board</button><button class="btn" id="eSame" type="button">Rebuild on this map</button><button class="btn primary" id="eNew" type="button">New region</button></div>`);
+  $('#eNew').onclick=()=>{newGame();closeModal();};$('#eBoard').onclick=closeModal;
+  $('#eSame').onclick=()=>{G.phase='build';S=G.S=null;UI.sel=null;UI.selLink=null;UI.tab='site';recomputeRoads();closeModal();};}
+
+/* ---------------- random event deck ---------------- */
+function pickW(items,wf){const w=items.map(wf),tot=w.reduce((a,b)=>a+b,0);if(tot<=0)return null;let x=rnd()*tot;for(let i=0;i<items.length;i++){x-=w[i];if(x<=0)return items[i];}return items[items.length-1];}
+const DECK=[{k:'aftershock',w:3,max:2},{k:'genloss',w:2,max:2},{k:'vent',w:2,max:1},{k:'fire',w:2,max:2},{k:'leak',w:3,max:3},{k:'flood',w:2,max:1},
+  {k:'fuelbad',w:1.5,max:1},{k:'sick',w:1.5,max:1},{k:'hatch',w:2.5,max:2},{k:'delay',w:1,max:1},{k:'scrubfault',w:2,max:2}];
+function drawEvents(){const n=rnd()<.2?0:rnd()<.7?1:2;
+  for(let i=0;i<n;i++){const pool=DECK.filter(d=>(S.deck[d.k]||0)<d.max);const d=pickW(pool,x=>x.w);if(!d)return;if(runEvent(d.k))S.deck[d.k]=(S.deck[d.k]||0)+1;}}
+function runEvent(k){const live=liveShelters();if(!live.length)return false;const any=()=>live[Math.floor(rnd()*live.length)];
+  switch(k){
+    case 'aftershock':{const ch=[];for(const l of S.links){if(!l.ok)continue;const r=rnd(),f=1-l.rel;if(r<f*.35){l.ok=false;l.hp=0;ch.push(`${linkName(l)} severed`);}else if(r<f*.9){l.hp=Math.max(20,l.hp-R0(25+rnd()*30));ch.push(`${linkName(l)} down to ${l.hp}%`);}}
+      for(const id of live){const s=st(id);s.hull=Math.max(0,R0(s.hull-(1-s.prot)*12*rnd()));}
+      ev(`Aftershock.${ch.length?' '+ch.join(', ')+'.':' The tunnels held.'}`);sendKey('aftershock',{ch});return true;}
+    case 'genloss':{const c=pickW(live.filter(i=>st(i).gcap&&st(i).gen>20),i=>1.1-st(i).prot);if(!c)return false;st(c).gen=Math.max(0,st(c).gen-40);ev(`${c} generator plant damaged.`);sendKey('genloss',{s:c});return true;}
+    case 'vent':{const c=pickW(live.filter(i=>st(i).scrubCap&&st(i).scrub>30),()=>1);if(!c)return false;st(c).scrub=Math.max(0,st(c).scrub-35);ev(`${c} scrubber housing cracked.`);sendKey('vent',{s:c});return true;}
+    case 'fire':{const c=any();st(c).air=clamp(st(c).air-15,0,100);st(c).morale-=5;ev(`Cable vault fire at ${c}. Air -15.`);sendKey('fire',{s:c});return true;}
+    case 'leak':{const c=pickW(live.filter(i=>st(i).water>500),()=>1);if(!c)return false;const s=st(c),lost=R0(s.water*.12);s.water-=lost;s.leak+=120;ev(`${c} tank seam split: -${num(lost)} L, still leaking.`);sendKey('leak',{s:c,lost});return true;}
+    case 'flood':{const c=pickW(live.filter(i=>st(i).sandM>6),i=>st(i).sandM);if(!c)return false;const s=st(c);s.hull=Math.max(0,s.hull-12);s.plant=Math.max(0,s.plant-30);const lost=R0(s.water*.25);s.water-=lost;ev(`${c}: groundwater through the sand lining. Water plant -30%, ${num(lost)} L contaminated.`);sendKey('flood',{s:c,lost});return true;}
+    case 'fuelbad':{const c=pickW(live.filter(i=>st(i).gcap&&st(i).fuel>500),()=>1);if(!c)return false;const s=st(c),lost=R0(s.fuel*.35);s.fuel-=lost;ev(`${c}: contaminated diesel, ${num(lost)} L drained.`);sendKey('fuelbad',{s:c,lost});return true;}
+    case 'sick':{const c=pickW(live,i=>st(i).pop/Math.max(1,st(i).cap));if(!c)return false;const s=st(c);s.morale-=15;casualties(s,s.pop*.01,'dysentery');sendKey('sick',{s:c});return true;}
+    case 'hatch':{const done=S.flags.hatchDone||[];const cand=live.filter(i=>!done.includes(i));if(!cand.length)return false;
+      const c=pickW(cand,i=>{const [t,d]=nearestTown(st(i).x,st(i).y);return 1/(1+d/20);});const [t]=nearestTown(st(c).x,st(c).y);
+      S.flags.hatchDone=[...done,c];sendKey('hatch',{s:c,town:t.name,n:40+Math.floor(rnd()*10)*10});return true;}
+    case 'delay':{const d=1+(rnd()<.35?1:0);S.relief+=d;ev(`Relief convoy delayed ${d*6} hours.`);sendKey('delay',{d});return true;}
+    case 'scrubfault':{const c=pickW(live.filter(i=>st(i).scrubCap),()=>1);if(!c)return false;st(c).scrub=Math.max(0,st(c).scrub-15);ev(`${c} scrubber fan bearing failing. -15%.`);return true;}
+  }return false;}
+function checkEvac(){const N=compute();
+  for(const id of liveShelters()){if(S.flags['ev'+id])continue;const s=st(id),n=N[id],sh=n.wnet<0?s.water/-n.wnet:99;
+    if(!(s.air<55||sh<2||(s.food<=0&&s.hungry>1)))continue;
+    const to=neighbors(id).find(x=>{const l=findLink(id,x);return l.ok&&x!=='CC'&&!st(x).lost&&!st(x).evac&&st(x).pop<st(x).cap*1.2;});
+    if(to){S.flags['ev'+id]=1;sendKey('evac',{s:id,to});return;}}}
+Object.assign(MAILS,{
+  aftershock:p=>({from:'ENG',subj:'AFTERSHOCK',body:`Controller,\n\nAftershock through the region.${p.ch.length?`\n\n${p.ch.map(x=>'  '+x).join('\n')}\n\nShallow tunnels in sand take it worst. A crew from either end can repair a line with a spares kit.`:'\n\nEvery tunnel held this time.'}\n- CHIEF ENG. K. DOSS`}),
+  leak:p=>({from:p.s,subj:'TANK SEAM SPLIT',body:`Control,\n\nA seam on our main water tank split. We lost ${num(p.lost)} L before we got a clamp on it, and it still weeps about ${st(p.s).leak} L a shift. A water plant overhaul would seal it properly.\n${sig(p.s)}`}),
+  flood:p=>({from:p.s,subj:'WATER IN THE SUMP',body:`Control,\n\nGroundwater is coming through the lining where the shaft passes through sand. The sump pumps are holding, but it got into the filtration room and the lower tank. ${num(p.lost)} L contaminated and dumped; the water plant is at ${R0(st(p.s).plant)}%.\n${sig(p.s)}`}),
+  fuelbad:p=>({from:p.s,subj:'BAD DIESEL',body:`Control,\n\nThe generator started hunting at 0300. Water in the day tank: the main bunker is contaminated. We drained ${num(p.lost)} L. ${num(st(p.s).fuel)} L left that we trust.\n${sig(p.s)}`}),
+  sick:p=>({from:p.s,subj:'SICKNESS',body:`Control,\n\nDysentery. It started in the bunk bays two days in and it is moving fast in the crowding. ${st(p.s).pop} people on ${st(p.s).cap} beds. We have lost people already. Clean water is the only medicine we have plenty of, and not for long.\n${sig(p.s)}`}),
+  delay:p=>({from:'HQ',subj:'CONVOY DELAYED',body:`ALL SHELTERS,\n\nThe relief convoy lost a bridge and is rerouting. Add ${p.d*6} hours. New ETA ${dtg(S.relief)}.\n\nI am sorry.\n- DIR. T. HOLLIS`}),
+});
+
+/* ================= frame & routing ================= */
+function frame(t){if(G&&WD){fitMap();if(G.phase==='build')drawBuild(t);else if(S&&UI.N)drawOps(t);}requestAnimationFrame(frame);}
+cv.addEventListener('pointerdown',e=>{if(!G||UI.modal)return;const [x,y]=toMap(e);try{cv.setPointerCapture(e.pointerId);}catch(_){}G.phase==='build'?buildDown(x,y):opsDown(x,y);});
+cv.addEventListener('pointermove',e=>{if(!G)return;const [x,y]=toMap(e);UI.mouse=[x,y];G.phase==='build'?buildMove(e,x,y):opsMove(e,x,y);});
+cv.addEventListener('pointerup',e=>{if(!G)return;const [x,y]=toMap(e);G.phase==='build'?buildUp(x,y):opsUp(x,y);});
+cv.addEventListener('pointerleave',()=>{UI.hover=null;UI.hoverLink=null;UI.hoverCell=null;$('#tip').hidden=true;});
+$('#side').addEventListener('click',e=>G.phase==='build'?buildSideClick(e):opsSideClick(e));
+$('#tabs').addEventListener('click',e=>{const t=e.target.closest('[data-tab]');if(!t)return;if(UI.tab===t.dataset.tab&&(t.dataset.tab==='shelter'||t.dataset.tab==='site'))UI.selLink=null;UI.tab=t.dataset.tab;refresh();});
+$('#mailBtn').onclick=()=>openMail();
+$('#mainBtn').onclick=()=>{if(G.phase==='build'){openCommission();return;}if(S.over){openEnd();return;}endShift();refresh();};
+document.addEventListener('keydown',e=>{
+  if(!G||e.ctrlKey||e.metaKey||e.altKey)return;const m=UI.modal,tag=(e.target.tagName||'').toLowerCase();
+  if(m&&m.type==='mail'){if(['ArrowDown','ArrowRight'].includes(e.key)){e.preventDefault();stepMail(1);return;}if(['ArrowUp','ArrowLeft'].includes(e.key)){e.preventDefault();stepMail(-1);return;}
+    if(/^[1-3]$/.test(e.key)){const ms=S.mails.find(x=>x.id===m.id);if(ms.opts&&ms.resolved===null&&+e.key<=ms.opts.length){e.preventDefault();answerMail(ms,+e.key-1);}return;}}
+  if(e.key==='Escape'){if(m&&!['end','title'].includes(m.type)){closeModal();return;}if(UI.pick){setPick(null);return;}if(UI.selLink!=null){UI.selLink=null;refresh();}return;}
+  if(m||tag==='input'||tag==='select')return;
+  if(G.phase==='ops'){if(e.key==='m'||e.key==='M')openMail();if(/^[0-6]$/.test(e.key)){const id=e.key==='0'?'CC':'S'+e.key;if(st(id)){UI.sel=id;UI.selLink=null;UI.tab='shelter';refresh();}}if(e.key==='t'||e.key==='T')openTransfer(UI.sel||'CC',null);}
+  else{if(e.key==='g'||e.key==='G'){UI.geo=!UI.geo;renderHint();}if(e.key==='d'&&UI.sel&&UI.sel!=='CC')openDesigner(UI.sel);}
+});
+
+/* ================= chrome ================= */
+function stat(n,lab,val){const el=$('#st'+n);el.hidden=!lab;if(lab){el.querySelector('.lbl').textContent=lab;el.querySelector('strong').innerHTML=val;}}
+function renderBar(){
+  const ph=$('#phase');
+  if(G.phase==='build'){const b=buildTotals();let beds=0;for(const s of G.build.sites)beds+=siteStats(s).beds;
+    ph.textContent='CONSTRUCTION';ph.className='phase';
+    stat(1,'Program budget left',`<span class="${b.left<0?'neg':''}">${mil(b.left)}</span>`);stat(2,'Shelters',`${G.build.sites.length} / ${MAXSITES}`);stat(3,'Beds',num(beds));stat(4,'Tunnels',G.build.tunnels.length);
+    $('#mailBtn').hidden=true;$('#mainBtn').textContent='Commission ▸';$('#mainBtn').disabled=false;return;}
+  const h=6+S.shift*6;ph.textContent='SEALED';ph.className='phase war';
+  stat(1,'Time',`${14+Math.floor(h/24)} NOV 86 · ${String(h%24).padStart(2,'0')}:00`);
+  stat(2,'Relief convoy',S.over?'arrived':S.shift<3?'not yet sent':`in ${(S.relief-S.shift)*6} h`);
+  const alive=ids().reduce((a,i)=>a+st(i).pop,0),dead=ids().reduce((a,i)=>a+st(i).dead,0);
+  stat(3,'In the shelters',`${num(alive)}${dead?` <span class="neg">· ${num(dead)} dead</span>`:''}`);
+  stat(4,'Tunnels working',`${S.links.filter(l=>l.ok).length} / ${S.links.length}`);
+  const un=S.mails.filter(m=>!m.read),b=$('#mailBadge');$('#mailBtn').hidden=false;b.hidden=!un.length;b.textContent=un.length;b.className='badge'+(un.some(m=>m.flash)?' flash':'');
+  $('#mainBtn').textContent=S.over?'Results':'End shift ▸';
+}
+function renderTabs(){const tabs=G.phase==='build'?buildTabs():[['shelter','Shelter'],['flows','Tunnels & flows'],['log','Log']];
+  if(!tabs.some(([k])=>k===UI.tab))UI.tab=tabs[0][0];
+  $('#tabs').innerHTML=tabs.map(([k,l])=>`<button class="tab" role="tab" data-tab="${k}" type="button" aria-selected="${k===UI.tab}">${l}</button>`).join('');}
+function renderTicker(){const l=G.phase==='ops'?S.log.slice(-3).reverse():[];
+  $('#ticker').innerHTML=G.phase==='build'?`<span class="dim">Program budget ${mil(G.build.budget)}. Excavation: sand ${money(COST.sandDig)}/m³ + lining ${money(COST.sandLine)}/m², rock ${money(COST.rockDig)}/m³ + ${money(COST.rockLine)}/m². Tunnels ${money(COST.tunSand)}/m in sand, ${money(COST.tunRock)}/m in rock.</span>`
+    :l.length?l.map(([sh,t])=>`<span class="dim">${shortT(sh)}</span> ${esc(t)}`).join(' &nbsp;·&nbsp; '):'<span class="dim">Nothing logged yet.</span>';}
+function refresh(){if(!G)return;if(G.phase==='ops')UI.N=compute();renderTabs();renderBar();renderHint();
+  const sc=$('#side').scrollTop;$('#side').innerHTML=G.phase==='build'?buildSide():opsSide();$('#side').scrollTop=sc;if(G.phase==='ops'&&UI.tab==='flows')bindFlows();renderTicker();}
+
+/* ================= game lifecycle ================= */
+function newGame(seed){seed=seed||((Math.random()*1e9)|0);G={v:3,seed,phase:'build',build:{budget:18e6,sites:[],tunnels:[]},S:null};S=null;
+  UI.sel=null;UI.selLink=null;UI.tab='site';UI.pick=null;genWorld(seed);refresh();}
+function openTitle(){UI.modal={type:'title'};
+  modal(`<div class="title-screen"><span class="lbl">Region 7 Civil Defense · Shelter Program · 1986</span><h1>HARDLINE</h1>
+  <p>Region 7 has ${mil(18e6)} to build and stock fallout shelters for the towns on this map. You choose the sites, dig the shafts, furnish them and tunnel them together. Then you run them, through a war.</p>
+  <ul class="evlist"><li>Click open ground to place up to six shelters. Roads appear automatically.</li><li>Sand is cheap to dig but needs heavy lining and protects poorly. Rock is expensive and strong. Press G or use the geology button to see where the sand is deep.</li>
+  <li>In the designer, pick a top diameter. Lower floors can be narrower, never wider. Fill the bays with quarters, storage, tanks, filtration, scrubbers and generators.</li>
+  <li>Dig tunnels between shelters and to Shelter Control. Deeper tunnels in rock survive the shock.</li><li>Commission when you are ready. Supplies go in with construction; what you build is what they will have.</li></ul>
+  <button class="btn primary" id="tGo" type="button">Survey the region</button></div>`,720);
+  $('#tGo').onclick=closeModal;}
+function start(data){
+  if(data&&data.G&&data.G.v===3){G=data.G;S=G.S;genWorld(G.seed);if(G.phase==='build')recomputeRoads();if(data.ui)Object.assign(UI,data.ui);refresh();}
+  else{newGame();openTitle();}
+  requestAnimationFrame(frame);if(document.fonts)document.fonts.load("600 12px 'IBM Plex Sans Condensed'").then(()=>{}).catch(()=>{});
+}
+window.claude?.hot?.snapshot?.(()=>({G,ui:{sel:UI.sel,tab:UI.tab,geo:UI.geo}}));
+window.claude?.hot?.ready?window.claude.hot.ready(start):start(window.claude?.hot?.data??{});
+
+})();
+</script>
+
+</body>
+</html>

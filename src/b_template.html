@@ -1,0 +1,112 @@
+<title>Hardline Shelters</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Silkscreen&display=swap">
+/*CSS*/
+<style>
+/* builder additions */
+.phase{font-family:var(--f-label);font-size:11px;padding:3px 8px;border:2px solid var(--amber);color:var(--amber);letter-spacing:.08em}
+.phase.war{border-color:var(--bad);color:var(--bad)}
+.designer{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:start}
+#xsec{display:block;width:360px;max-width:100%;image-rendering:pixelated;image-rendering:crisp-edges;background:#2b2240;border:2px solid var(--panel-lo)}
+.dctl{display:flex;flex-direction:column;gap:12px;min-width:0}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg .btn{min-width:46px}
+.seg .btn.on{background:var(--amber);color:#2a1a05;box-shadow:inset 2px 2px 0 #ffd77e,inset -2px -2px 0 #b97a12}
+.floors{display:flex;flex-direction:column;gap:2px;max-height:230px;overflow:auto;background:#1f192b;border:2px solid var(--panel-lo);padding:4px}
+.floor{display:grid;grid-template-columns:34px 76px 1fr 86px 56px;gap:6px;align-items:center;font-size:14px;padding:2px 4px}
+.floor select{background:#15111d;border:2px solid var(--panel-lo);padding:1px 4px}
+.mat{font-family:var(--f-label);font-size:10px;padding:1px 4px}
+.mat.sand{background:#c9a85e;color:#2a1a05}.mat.rock{background:#77757f;color:#fff}.mat.mix{background:linear-gradient(90deg,#c9a85e 50%,#77757f 50%);color:#fff}
+.mods{display:grid;grid-template-columns:14px minmax(0,1fr) auto auto;gap:6px 8px;align-items:center;font-size:14px}
+.mods .sw{width:14px;height:14px}
+.cnt{display:inline-flex;align-items:center;gap:4px}
+.cnt b{min-width:26px;text-align:center;font-variant-numeric:tabular-nums}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.kv>div{background:#1f192b;border:2px solid var(--panel-lo);padding:6px 8px;display:flex;flex-direction:column;gap:2px}
+.kv .v{font-size:18px;font-weight:500}
+.kv .v.neg{color:var(--bad)}.kv .v.pos{color:var(--ok)}
+.warns{display:flex;flex-direction:column;gap:4px;margin:0;padding:0;list-style:none;font-size:14px}
+.warns li.err{color:var(--bad)}.warns li.warn{color:var(--warn)}
+.warns li::before{content:"■ "}
+#prof{display:block;width:100%;image-rendering:pixelated;background:#2b2240;border:2px solid var(--panel-lo)}
+.check{display:flex;gap:12px;flex-wrap:wrap}
+.check label{display:inline-flex;gap:6px;align-items:center;cursor:pointer;padding:4px 8px;background:#1f192b;border:2px solid var(--panel-lo)}
+.check input{accent-color:var(--amber);width:16px;height:16px}
+
+/* type: Silkscreen only at whole multiples of its 8px grid; everything small uses Pixelify Sans */
+.lbl{font-family:var(--f-ui);font-size:13px;font-weight:500;letter-spacing:.08em}
+.brand b{font-size:24px}
+.brand span{font-family:var(--f-ui);font-size:12px;font-weight:500;letter-spacing:.12em}
+.chip,.phase,.mat,.badge{font-family:var(--f-ui);font-weight:500;letter-spacing:.06em}
+.chip{font-size:12px}.phase{font-size:13px}.mat{font-size:11px}.badge{font-size:12px}
+.tab{font-family:var(--f-ui);font-size:14px;font-weight:500;letter-spacing:.06em;text-transform:uppercase}
+.modal h2{font-size:16px;letter-spacing:.04em}
+.title-screen h1{font-size:48px}
+/* fade to war */
+[hidden]{display:none!important}
+#fade{position:fixed;inset:0;z-index:90;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;opacity:0;transition:opacity 1.1s ease;cursor:pointer;padding:24px}
+#fade.on{opacity:1}
+#fade .fl{font-family:var(--f-label);font-size:16px;color:var(--paper);letter-spacing:.08em;text-align:center;animation:flin .6s steps(4) both}
+#fade .fl.dim{color:var(--muted)}
+#fade .fl.red{font-size:48px;color:var(--bad);animation:flin .2s steps(2) both,blink .7s steps(1) .2s infinite}
+@keyframes flin{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){#fade{transition-duration:.2s}#fade .fl,#fade .fl.red{animation:none}}
+
+/* readable type: Plex for everything people read; the pixel face only for big display text */
+:root{--f-ui:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;--f-label:'IBM Plex Sans Condensed','Arial Narrow',sans-serif;--f-mono:'IBM Plex Mono',ui-monospace,monospace;--f-pixel:'Silkscreen','Courier New',monospace}
+body{font-size:15px;line-height:1.45}
+.lbl{font-family:var(--f-label);font-size:12px;font-weight:600;letter-spacing:.07em}
+.brand b{font-family:var(--f-pixel);font-size:24px}
+.brand span{font-family:var(--f-label);font-size:12px;font-weight:600;letter-spacing:.1em}
+.chip,.phase,.badge,.mat,.tab{font-family:var(--f-label);font-weight:600;letter-spacing:.06em}
+.chip{font-size:12px}.phase{font-size:13px}.badge{font-size:12px}.mat{font-size:11px}.tab{font-size:13px}
+.big{font-family:var(--f-label);font-size:22px;font-weight:600}
+.stat strong{font-family:var(--f-label);font-weight:600}
+.clock,.kv .v{font-family:var(--f-label);font-weight:600}
+.btn{font-family:var(--f-ui);font-weight:500}
+.modal h2{font-family:var(--f-label);font-size:20px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.title-screen h1{font-family:var(--f-pixel);font-size:48px}
+.reader pre{font-family:var(--f-mono);font-size:14.5px;line-height:1.55}
+.mitem{font-size:14px}.mitem .s{font-weight:600}
+.tip{font-size:13.5px;line-height:1.4}
+#fade .fl{font-family:var(--f-mono);font-size:16px;font-weight:500}
+#fade .fl.red{font-family:var(--f-pixel);font-size:56px}
+@media (max-width:760px){.designer{grid-template-columns:1fr}#xsec{width:100%}.floor{grid-template-columns:30px 70px 1fr 80px}.floor .bays{display:none}}
+</style>
+
+<div class="app">
+  <header class="bar px">
+    <div class="brand"><b>HARDLINE</b><span>REGION 7 SHELTER PROGRAM</span></div>
+    <span class="phase" id="phase">CONSTRUCTION</span>
+    <div class="stat" id="st1"><span class="lbl"></span><strong class="num"></strong></div>
+    <div class="stat" id="st2"><span class="lbl"></span><strong class="num"></strong></div>
+    <div class="stat" id="st3"><span class="lbl"></span><strong class="num"></strong></div>
+    <div class="stat" id="st4"><span class="lbl"></span><strong class="num"></strong></div>
+    <button class="btn" id="mailBtn" type="button">Mail<span class="badge" id="mailBadge" hidden></span></button>
+    <button class="btn primary" id="mainBtn" type="button">Commission ▸</button>
+  </header>
+  <div class="main">
+    <section class="mapcard px">
+      <div class="mapscroll"><canvas id="map" width="640" height="360" aria-label="Region map"></canvas></div>
+      <div class="maphint"><span id="hint"></span></div>
+      <div class="maphint" id="legend"></div>
+    </section>
+    <aside class="side">
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <div class="sidebody px" id="side"></div>
+    </aside>
+  </div>
+  <footer class="ticker px"><span class="lbl">Latest</span><div id="ticker"></div></footer>
+</div>
+<div id="modalRoot"></div>
+<div class="toast px" id="toast" hidden></div>
+<div class="tip px" id="tip" hidden></div>
+<div id="fade" hidden aria-live="assertive"></div>
+<script>
+(()=>{
+'use strict';
+/*JS*/
+})();
+</script>
