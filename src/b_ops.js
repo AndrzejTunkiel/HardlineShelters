@@ -540,14 +540,14 @@ function openTransfer(from,to){
   if(!to||to===from){toast('There is no other shelter to send to.',true);return;}
   const cur=t=>(S.flows.find(f=>f.type===t&&f.from===from&&f.to===to)||{}).amt||0;
   UI.modal={type:'xfer',from,to,vals:{W:cur('W'),A:cur('A'),P:cur('P')},orig:{W:cur('W'),A:cur('A'),P:cur('P')}};setPick(null);renderTransfer();}
-function preview(m){const save=S.flows.map(f=>({...f}));
+function preview(m){const save=S.flows.map(f=>({...f})),A=st(m.from),B=st(m.to),k=Math.max(0,Math.min(m.people||0,A.pop-A.staff));A.pop-=k;B.pop+=k;
   for(const t of ['W','A','P']){const ex=S.flows.find(f=>f.type===t&&f.from===m.from&&f.to===m.to);if(ex)ex.amt=m.vals[t];else if(m.vals[t]>0)S.flows.push({id:-1,type:t,from:m.from,to:m.to,amt:m.vals[t]});}
   S.flows=S.flows.filter(f=>f.amt>0);const N=compute(),res={};for(const t of ['W','A','P']){const f=S.flows.find(f=>f.type===t&&f.from===m.from&&f.to===m.to);res[t]=f?{actual:f.actual,got:f.got,note:f.note}:null;}
-  S.flows=save;compute();return {N,res};}
+  S.flows=save;A.pop+=k;B.pop-=k;compute();return {N,res,k};}
 function renderTransfer(){const m=UI.modal;
   const opt=sel=>ids().filter(i=>!st(i).lost&&!st(i).evac).map(i=>`<option value="${i}" ${i===sel?'selected':''}>${i} ${esc(st(i).name)}</option>`).join('');
   let h=`<div class="xhead"><h2>Send</h2><select id="xFrom" class="btn" aria-label="From">${opt(m.from)}</select><button class="btn small" id="xSwap" type="button" title="Swap direction">⇄</button><select id="xTo" class="btn" aria-label="To">${opt(m.to)}</select>
-    <span class="xbtns"><button class="btn" id="xCancel" type="button">Cancel</button><button class="btn primary" id="xApply" type="button">Apply flows</button></span></div><div class="xrows">`;
+    <span class="xbtns"><button class="btn" id="xCancel" type="button">Cancel</button><button class="btn primary" id="xApply" type="button">Apply flows</button></span></div><div class="xviz" id="xviz" aria-live="polite"></div><div class="xrows">`;
   for(const t of ['W','A','P']){const r=staticRoute(t,m.from,m.to),mx=r?Math.max(m.vals[t],routeMax(t,m.from,m.to)):0,step={W:100,A:10,P:5}[t],nm=cap1(RNAME[t]);
     const name=`<span class="nm"><i class="ico" style="--c:${COL[t]}"></i>${nm}</span>`;
     if(!r){h+=`<div class="xrow na">${name}<span class="info">No working ${t==='W'?'water main':t==='A'?'air duct':'power cable'} between these shelters.</span></div>`;continue;}
@@ -557,12 +557,12 @@ function renderTransfer(){const m=UI.modal;
    h+=pr&&mx?`<div class="xrow">${name}<input type="range" id="xrH" min="0" max="${mx}" step="5" value="${Math.min(mx,40)}" style="--c:var(--paper)" aria-label="People slider"><input type="number" id="xnH" min="0" max="${mx}" step="5" value="${Math.min(mx,40)}" aria-label="People to move"><button class="btn small" id="xMove" type="button">Move now</button>
       <span class="info"><span>crawlway ${pr.nodes.join('→')} · ${pr.cap} more can pass this shift</span><span>${m.to}: ${st(m.to).pop} on ${st(m.to).cap} beds</span></span></div>`
      :`<div class="xrow na">${name}<span class="info">${pr?`${m.from} has nobody it can send.`:'No open crawlway, or this shift\'s capacity is used up.'}</span></div>`;}
-  h+=`</div><div class="fxline" id="xfx"></div><div class="dim small">Flows repeat every shift until changed; people move at once.${S.grid?' Air and power flows wait on standby until the grid fails.':''}</div>`;
+  h+=`</div><div class="dim small">Flows repeat every shift until changed; people move at once.${S.grid?' Air and power flows wait on standby until the grid fails.':''}</div>`;
   modal(h,760);
   const re=()=>{const f=$('#xFrom').value,t=$('#xTo').value;openTransfer(f,t===f?null:t);};$('#xFrom').onchange=re;$('#xTo').onchange=re;
   $('#xSwap').onclick=()=>openTransfer(m.to,m.from);$('#xCancel').onclick=closeModal;$('#xApply').onclick=applyTransfer;
   for(const t of ['W','A','P']){const r=$('#xr'+t),n=$('#xn'+t);if(!r)continue;r.oninput=()=>{m.vals[t]=+r.value;n.value=r.value;updatePreview();};n.oninput=()=>{m.vals[t]=clamp(+n.value||0,0,+n.max);r.value=m.vals[t];updatePreview();};}
-  if($('#xMove')){const r=$('#xrH'),n=$('#xnH');r.oninput=()=>{n.value=r.value;};n.oninput=()=>{r.value=n.value;};$('#xMove').onclick=()=>{const res=movePeople(m.from,m.to,+n.value);toast(res[1],!res[0]);res[0]?blip():buzz();UI.N=compute();refresh();openTransfer(m.from,m.to);};}
+  m.people=0;if($('#xMove')){const r=$('#xrH'),n=$('#xnH');m.people=+r.value;r.oninput=()=>{n.value=r.value;m.people=+r.value;updatePreview();};n.oninput=()=>{r.value=n.value;m.people=+n.value||0;updatePreview();};$('#xMove').onclick=()=>{const res=movePeople(m.from,m.to,+n.value);toast(res[1],!res[0]);res[0]?blip():buzz();UI.N=compute();refresh();openTransfer(m.from,m.to);};}
   updatePreview();}
 function spare(t,id){const s=st(id),n=UI.N[id];if(t==='W')return `${id} holds ${num(s.water)} L`;if(S.grid)return 'standby until the grid fails';
   if(t==='A'){const sp=R0(n.scrubOut-n.need);return sp>0?`${id} has ${num(sp)} CFM spare`:`<span class="neg">${id} has no spare air</span>`;}
@@ -570,9 +570,20 @@ function spare(t,id){const s=st(id),n=UI.N[id];if(t==='W')return `${id} holds ${
 function updatePreview(){const m=UI.modal,p=preview(m),N0=UI.N,N1=p.N;
   for(const t of ['W','A','P']){const el=$('#xp'+t);if(!el)continue;const r=p.res[t];
     el.innerHTML=!m.vals[t]?(m.orig[t]?'<span class="neg">stops the flow</span>':''):r?`moves <b class="num">${num(r.actual)}</b>, <b class="num">${num(r.got)}</b> arrives · <span class="${r.note==='LIVE'||r.note==='STANDBY'?'pos':'neg'}">${r.note.toLowerCase()}</span>`:'';}
-  const ch=(lab,x,y,u)=>`${lab} ${x}→<b class="${y<x?'neg':y>x?'pos':''}">${y}</b>${u}`;
-  const side=id=>{const a=N0[id],b=N1[id];return `<span><b>${id}</b> ${[war()?ch('air',R0(a.airDelta),R0(b.airDelta),'/sh'):'',ch('water',R0(a.wnet),R0(b.wnet),' L'),S.grid?'':ch('power',R0(a.bal),R0(b.bal),' kW')].filter(Boolean).join(' · ')}</span>`;};
-  $('#xfx').innerHTML=side(m.from)+side(m.to);}
+  // live status of both shelters: next-shift projection now vs with the flows and people in this dialog
+  const pc=(v,mx)=>clamp(mx>0?v/mx:0,0,1)*100;
+  const bar=(lab,cur,nxt,mx,col,fmt,good=1,tick=null)=>{const a=pc(Math.min(cur,nxt),mx),b=pc(Math.max(cur,nxt),mx),better=(nxt-cur)*good>0,changed=Math.abs(nxt-cur)>=Math.max(1,mx*.002);
+    return `<div class="vb"><span class="vl">${lab}</span><div class="vtrack"><i style="width:${pc(Math.min(cur,nxt),mx)}%;background:${col}"></i>${changed?`<i class="${better?'up':'dn'}" style="left:${a}%;width:${b-a}%"></i>`:''}<b style="left:calc(${pc(nxt,mx)}% - 1px)"></b>${tick!=null?`<u style="left:calc(${pc(tick,mx)}% - 1px)" title="needed"></u>`:''}</div><span class="vn num">${changed?`${fmt(cur)} → <b class="${better?'pos':'neg'}">${fmt(nxt)}</b>`:fmt(nxt)}</span></div>`;};
+  const card=(id,role,dPeople)=>{const s=st(id),a=N0[id],b=N1[id],sa=siteStatus(s,a),k=dPeople;
+    const airA=clamp(s.air+a.airDelta,0,100),airB=clamp(s.air+b.airDelta,0,100),wA=clamp(s.water+a.wnet,0,s.wcap),wB=clamp(s.water+b.wnet,0,s.wcap);
+    const popB=s.pop+k;
+    const sb=(()=>{const save=s.pop;s.pop=popB;const r=siteStatus(s,b);s.pop=save;return r;})();
+    return `<div class="vcard"><div class="vh"><span class="lbl">${role}</span><b>${id} ${esc(s.name.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()))}</b><span class="chip ${sb}">${sa===sb?sb:`${sa}→${sb}`}</span></div>
+      ${bar('People',s.pop,popB,Math.max(s.cap,s.pop,popB),'var(--paper)',v=>`${R0(v)}/${s.cap}`,-1)}
+      ${bar('Air',airA,airB,100,'var(--air)',v=>`${R0(v)}%`)}
+      ${bar('Water',wA,wB,s.wcap||1,'var(--water)',v=>`${(v/1000).toFixed(1)}k`)}
+      ${S.grid?bar('Power',1,1,1,'var(--amber)',()=>'grid'):bar('Power',a.avail,b.avail,Math.max(a.load,b.load,a.avail,b.avail)*1.08||1,'var(--amber)',v=>`${R0(v)} kW`,1,b.load)}</div>`;};
+  $('#xviz').innerHTML=card(m.from,'From',-(p.k||0))+`<div class="varrow">▶</div>`+card(m.to,'To',p.k||0)+`<div class="vnote dim small">Bars show next shift: fill = level, green = gained, red = lost by this transfer, white mark = where it ends up. Power is kW available; the red dashed tick is what the shelter needs.</div>`;}
 function applyTransfer(){const m=UI.modal,msgs=[];let ok=true;for(const t of ['W','A','P'])if(m.vals[t]!==m.orig[t]&&$('#xr'+t)){const [o,msg]=setFlow(t,m.from,m.to,m.vals[t]);ok=ok&&o;msgs.push(msg);}
   closeModal();if(msgs.length){toast(msgs.join(' '),!ok);ok?blip():buzz();}else toast('No changes.');}
 

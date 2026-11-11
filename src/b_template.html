@@ -150,6 +150,25 @@ details.more .ledger{margin-top:6px;font-size:13px}
 .xrow.na .info{grid-column:auto}
 .fxline{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:13px;padding:6px 10px;background:#1f192b;border:2px solid var(--panel-lo)}
 @media (max-width:640px){.xrow{grid-template-columns:80px minmax(0,1fr) 70px}.xrow>.dim{display:none}.xbtns{margin-left:0;width:100%;justify-content:flex-end}}
+
+/* live status in the transfer dialog */
+.xviz{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:6px 8px;align-items:stretch}
+.vcard{background:#1f192b;border:2px solid var(--panel-lo);padding:6px 8px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.vh{display:flex;align-items:baseline;gap:8px;min-width:0}
+.vh b{font-family:var(--f-label);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.vh .chip{flex:none}
+.vb{display:grid;grid-template-columns:52px minmax(0,1fr) 118px;gap:8px;align-items:center;font-size:12.5px}
+.vl{color:var(--muted)}
+.vn{text-align:right;white-space:nowrap}
+.vtrack{position:relative;height:12px;background:#15111d;border:2px solid var(--panel-lo)}
+.vtrack i{position:absolute;top:0;bottom:0;left:0}
+.vtrack i.up{background:repeating-linear-gradient(45deg,var(--ok) 0 3px,#15111d 3px 6px)}
+.vtrack i.dn{background:repeating-linear-gradient(45deg,var(--bad) 0 3px,#15111d 3px 6px)}
+.vtrack u{position:absolute;top:-2px;bottom:-2px;width:0;border-left:2px dashed var(--bad)}
+.vtrack b{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--paper)}
+.varrow{align-self:center;color:var(--amber);font-size:18px}
+.vnote{grid-column:1/-1}
+@media (max-width:640px){.xviz{grid-template-columns:1fr}.varrow{display:none}.vb{grid-template-columns:46px minmax(0,1fr) 96px}}
 @media (max-width:760px){.designer{grid-template-columns:1fr}#xsec{width:100%}.floor{grid-template-columns:30px 70px 1fr 80px}.floor .bays{display:none}}
 </style>
 
