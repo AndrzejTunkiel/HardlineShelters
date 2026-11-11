@@ -395,11 +395,13 @@ function drawCard(id,t){
   if(!dark){const lit=S.grid||n.baseF>=1;for(const fy of [sy+2,sy+12,sy+21])F(sx+9,fy,2,1,lit?'#ffe08a':'#3a3050');
     const slots=63,cap=Math.max(1,s.cap),fill=R0(Math.min(s.pop,cap)/cap*slots),over=Math.min(slots-fill,R0(Math.max(0,s.pop-cap)/cap*slots));
     for(let k=0;k<fill+over;k++){const fl=2-Math.floor(k/21),sl=k%21,row=Math.floor(sl/7),col=sl%7;F(sx+3+col*2,sy+4+fl*9+row*2,1,1,k>=fill?'#ec4b3f':['#efe6cf','#e8c48a','#d99a6c'][k%3]);}}
-  F(sx+2,sy+31,16,9,'#15111d');const wl=R0(clamp(s.wcap?s.water/s.wcap:0,0,1)*8);if(wl)F(sx+2,sy+40-wl,16,wl,'#3c7fd0');
-  if(s.leak>0&&!dark&&!reduced&&(t/250|0)%2)F(sx+6,sy+42,1,2,'#7cc0ff');
+  // storeroom: food against storage capacity (water has its own gauge)
+  F(sx+2,sy+31,16,9,'#15111d');const fl=R0(clamp(s.foodCap?s.food/s.foodCap:0,0,1)*8),fBl=!dark&&war()&&n.foodUse>0&&s.food<n.foodUse*4&&!reduced&&(t/400|0)%2;
+  if(fl){F(sx+2,sy+40-fl,16,fl,fBl?'#ec4b3f':COL.FOOD);F(sx+2,sy+40-fl,16,1,'#ffffff55');for(const cx of [sx+7,sx+12])F(cx,sy+40-fl,1,fl,'#15111d88');}
+  else if(!dark&&war()&&(t/400|0)%2&&!reduced)F(sx+2,sy+39,16,1,'#ec4b3f');
   const W_=war(),wsh=n.wnet<0?s.water/-n.wnet:99;
   const vals=[[s.air/100,COL.A,W_&&s.air<50,W_?n.airDelta:0],[s.wcap?s.water/s.wcap:0,COL.W,W_&&wsh<3,W_?n.wnet:0],[S.grid?1:(n.load?n.avail/n.load:1),COL.P,!S.grid&&n.baseF<1,!S.grid&&n.bal<0?-1:0],[s.fcap?s.fuel/s.fcap:0,COL.F,!S.grid&&s.gcap&&s.fuel<n.burn*3,0]];
-  vals.forEach(([v,c,bl,tr],k)=>{const gx=x0+27+k*7;gauge(gx,y0+13,dark?0:v,c,bl,t);if(!dark&&Math.abs(tr)>=1)arrow(gx,y0+10,tr>0,tr>0?'#77d65b':'#ec4b3f');});
+  vals.forEach(([v,c,bl,tr],k)=>{const gx=x0+27+k*7;gauge(gx,y0+13,dark?0:v,c,bl,t);if(k===1&&s.leak>0&&!dark){const dy=reduced?0:(t/140|0)%7;F(gx+6,y0+44+dy,1,2,'#7cc0ff');}if(!dark&&Math.abs(tr)>=1)arrow(gx,y0+10,tr>0,tr>0?'#77d65b':'#ec4b3f');});
   txt(dark?(s.evac?'EVACUATED':'NO CARRIER'):`${s.pop}/${s.cap}`,x0+3,y0+55,dark?'#a197b4':s.pop>s.cap?'#ec4b3f':'#efe6cf');
 }
 function linkPts(i){const l=S.links[i],A=st(l.a),B=st(l.b);return [A.x*4+2,A.y*4+2,B.x*4+2,B.y*4+2];}
