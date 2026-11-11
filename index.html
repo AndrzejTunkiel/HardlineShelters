@@ -288,6 +288,23 @@ body{margin:0}
 .tchip:hover{border-color:var(--amber)}
 details.more summary{cursor:pointer;font-size:13px;color:var(--muted)}
 details.more .ledger{margin-top:6px;font-size:13px}
+
+/* compact transfer dialog */
+.xhead{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+.xhead h2{margin-right:4px}
+.xhead select{max-width:220px}
+.xbtns{margin-left:auto;display:flex;gap:8px}
+.xrows{display:flex;flex-direction:column;gap:6px}
+.xrow{display:grid;grid-template-columns:92px minmax(0,1fr) 86px minmax(76px,auto);gap:2px 10px;align-items:center;padding:6px 10px;background:#1f192b;border:2px solid var(--panel-lo)}
+.xrow.na{opacity:.6;grid-template-columns:92px minmax(0,1fr)}
+.xrow .nm{display:flex;gap:8px;align-items:center;font-weight:600}
+.xrow .ico{width:12px;height:12px;background:var(--c);display:inline-block}
+.xrow input[type=number]{width:100%}
+.xrow .btn{white-space:nowrap}
+.xrow .info{grid-column:1/-1;display:flex;justify-content:space-between;gap:4px 10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.xrow.na .info{grid-column:auto}
+.fxline{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:13px;padding:6px 10px;background:#1f192b;border:2px solid var(--panel-lo)}
+@media (max-width:640px){.xrow{grid-template-columns:80px minmax(0,1fr) 70px}.xrow>.dim{display:none}.xbtns{margin-left:0;width:100%;justify-content:flex-end}}
 @media (max-width:760px){.designer{grid-template-columns:1fr}#xsec{width:100%}.floor{grid-template-columns:30px 70px 1fr 80px}.floor .bays{display:none}}
 </style>
 
@@ -1375,17 +1392,18 @@ function preview(m){const save=S.flows.map(f=>({...f}));
   S.flows=save;compute();return {N,res};}
 function renderTransfer(){const m=UI.modal;
   const opt=sel=>ids().filter(i=>!st(i).lost&&!st(i).evac).map(i=>`<option value="${i}" ${i===sel?'selected':''}>${i} ${esc(st(i).name)}</option>`).join('');
-  let h=`<h2>Send between shelters</h2><div class="row" style="justify-content:flex-start;gap:10px"><label class="lbl" for="xFrom">From</label><select id="xFrom" class="btn">${opt(m.from)}</select><button class="btn small" id="xSwap" type="button" title="Swap">⇄</button><label class="lbl" for="xTo">To</label><select id="xTo" class="btn">${opt(m.to)}</select></div>`;
+  let h=`<div class="xhead"><h2>Send</h2><select id="xFrom" class="btn" aria-label="From">${opt(m.from)}</select><button class="btn small" id="xSwap" type="button" title="Swap direction">⇄</button><select id="xTo" class="btn" aria-label="To">${opt(m.to)}</select>
+    <span class="xbtns"><button class="btn" id="xCancel" type="button">Cancel</button><button class="btn primary" id="xApply" type="button">Apply flows</button></span></div><div class="xrows">`;
   for(const t of ['W','A','P']){const r=staticRoute(t,m.from,m.to),mx=r?Math.max(m.vals[t],routeMax(t,m.from,m.to)):0,step={W:100,A:10,P:5}[t],nm=cap1(RNAME[t]);
-    if(!r){h+=`<div class="xres na"><div class="top"><i class="ico" style="--c:${COL[t]}"></i><h3>${nm}</h3></div><div class="dim">No working ${t==='W'?'water main':t==='A'?'air duct':'power cable'} connects these shelters.</div></div>`;continue;}
-    h+=`<div class="xres"><div class="top"><i class="ico" style="--c:${COL[t]}"></i><h3>${nm}</h3><input type="number" id="xn${t}" min="0" max="${mx}" step="${step}" value="${m.vals[t]}" aria-label="${nm} amount"><span class="dim">${UNIT[t]}</span></div>
-      <input type="range" id="xr${t}" min="0" max="${mx}" step="${step}" value="${m.vals[t]}" style="--c:${COL[t]}" aria-label="${nm} slider"><div class="row dim" style="font-size:14px"><span>Route ${r.nodes.join(' → ')} · line limit ${num(mx)} ${UNIT[t]}</span><span>${spare(t,m.from)}</span></div><div id="xp${t}" style="font-size:14px"></div></div>`;}
-  {const pr=peopleRoute(m.from,m.to),A=st(m.from),avail=Math.max(0,A.pop-A.staff),mx=pr?Math.min(pr.cap,avail):0;
-   h+=`<div class="xres${pr&&mx?'':' na'}"><div class="top"><i class="ico" style="--c:var(--paper)"></i><h3>People</h3>${pr&&mx?`<input type="number" id="xnH" min="0" max="${mx}" step="5" value="${Math.min(mx,40)}" aria-label="People to move"><button class="btn small" id="xMove" type="button">Move now</button>`:''}</div>
-     ${pr&&mx?`<input type="range" id="xrH" min="0" max="${mx}" step="5" value="${Math.min(mx,40)}" style="--c:var(--paper)" aria-label="People slider"><div class="row dim" style="font-size:14px"><span>Crawlway ${pr.nodes.join(' → ')} · ${pr.cap} more can pass this shift</span><span>${m.to} has ${st(m.to).pop} on ${st(m.to).cap} beds</span></div>`
-     :`<div class="dim">${pr?`${m.from} has nobody it can send.`:'No open crawlway between these shelters, or this shift\'s capacity is used up. Collapsed and severed tunnels cannot be walked.'}</div>`}</div>`;}
-  h+=`<div class="fx" id="xfx"></div><div class="dim" style="font-size:13px">A flow repeats every shift until you change it.${S.grid?' Before the grid fails, air and power flows wait on standby; water flows run now.':''}</div>
-    <div class="foot"><button class="btn" id="xCancel" type="button">Cancel</button><button class="btn primary" id="xApply" type="button">Apply flows</button></div>`;
+    const name=`<span class="nm"><i class="ico" style="--c:${COL[t]}"></i>${nm}</span>`;
+    if(!r){h+=`<div class="xrow na">${name}<span class="info">No working ${t==='W'?'water main':t==='A'?'air duct':'power cable'} between these shelters.</span></div>`;continue;}
+    h+=`<div class="xrow">${name}<input type="range" id="xr${t}" min="0" max="${mx}" step="${step}" value="${m.vals[t]}" style="--c:${COL[t]}" aria-label="${nm} slider"><input type="number" id="xn${t}" min="0" max="${mx}" step="${step}" value="${m.vals[t]}" aria-label="${nm} amount"><span class="dim">${UNIT[t]}</span>
+      <span class="info"><span>${r.nodes.join('→')} · limit ${num(mx)} · ${spare(t,m.from)}</span><span id="xp${t}"></span></span></div>`;}
+  {const pr=peopleRoute(m.from,m.to),A=st(m.from),avail=Math.max(0,A.pop-A.staff),mx=pr?Math.min(pr.cap,avail):0,name=`<span class="nm"><i class="ico" style="--c:var(--paper)"></i>People</span>`;
+   h+=pr&&mx?`<div class="xrow">${name}<input type="range" id="xrH" min="0" max="${mx}" step="5" value="${Math.min(mx,40)}" style="--c:var(--paper)" aria-label="People slider"><input type="number" id="xnH" min="0" max="${mx}" step="5" value="${Math.min(mx,40)}" aria-label="People to move"><button class="btn small" id="xMove" type="button">Move now</button>
+      <span class="info"><span>crawlway ${pr.nodes.join('→')} · ${pr.cap} more can pass this shift</span><span>${m.to}: ${st(m.to).pop} on ${st(m.to).cap} beds</span></span></div>`
+     :`<div class="xrow na">${name}<span class="info">${pr?`${m.from} has nobody it can send.`:'No open crawlway, or this shift\'s capacity is used up.'}</span></div>`;}
+  h+=`</div><div class="fxline" id="xfx"></div><div class="dim small">Flows repeat every shift until changed; people move at once.${S.grid?' Air and power flows wait on standby until the grid fails.':''}</div>`;
   modal(h,760);
   const re=()=>{const f=$('#xFrom').value,t=$('#xTo').value;openTransfer(f,t===f?null:t);};$('#xFrom').onchange=re;$('#xTo').onchange=re;
   $('#xSwap').onclick=()=>openTransfer(m.to,m.from);$('#xCancel').onclick=closeModal;$('#xApply').onclick=applyTransfer;
@@ -1397,10 +1415,10 @@ function spare(t,id){const s=st(id),n=UI.N[id];if(t==='W')return `${id} holds ${
   const sp=R0(n.gen-n.load);return sp>0?`${id} has ${sp} kW spare`:`<span class="neg">${id} has no spare power</span>`;}
 function updatePreview(){const m=UI.modal,p=preview(m),N0=UI.N,N1=p.N;
   for(const t of ['W','A','P']){const el=$('#xp'+t);if(!el)continue;const r=p.res[t];
-    el.innerHTML=!m.vals[t]?`<span class="dim">${m.orig[t]?'This will stop the current flow.':'No flow.'}</span>`:r?`Moves <b class="num">${num(r.actual)}</b> ${UNIT[t]}, <b class="num">${num(r.got)}</b> arrives after line losses. <span class="${r.note==='LIVE'||r.note==='STANDBY'?'pos':'neg'}">${r.note.toLowerCase()}</span>`:'';}
-  const side=id=>{const a=N0[id],b=N1[id],row=(lab,x,y,u)=>`<div class="row"><span>${lab}</span><span class="num">${x} → <b class="${y<x?'neg':y>x?'pos':''}">${y}</b>${u}</span></div>`;
-    return `<b>${id} ${esc(st(id).name)}</b>${war()?row('Air trend',R0(a.airDelta),R0(b.airDelta),'/sh'):''}${row('Water net',R0(a.wnet),R0(b.wnet),' L')}${S.grid?'':row('Power balance',R0(a.bal),R0(b.bal),' kW')}`;};
-  $('#xfx').innerHTML=`<div>${side(m.from)}</div><div>${side(m.to)}</div>`;}
+    el.innerHTML=!m.vals[t]?(m.orig[t]?'<span class="neg">stops the flow</span>':''):r?`moves <b class="num">${num(r.actual)}</b>, <b class="num">${num(r.got)}</b> arrives · <span class="${r.note==='LIVE'||r.note==='STANDBY'?'pos':'neg'}">${r.note.toLowerCase()}</span>`:'';}
+  const ch=(lab,x,y,u)=>`${lab} ${x}→<b class="${y<x?'neg':y>x?'pos':''}">${y}</b>${u}`;
+  const side=id=>{const a=N0[id],b=N1[id];return `<span><b>${id}</b> ${[war()?ch('air',R0(a.airDelta),R0(b.airDelta),'/sh'):'',ch('water',R0(a.wnet),R0(b.wnet),' L'),S.grid?'':ch('power',R0(a.bal),R0(b.bal),' kW')].filter(Boolean).join(' · ')}</span>`;};
+  $('#xfx').innerHTML=side(m.from)+side(m.to);}
 function applyTransfer(){const m=UI.modal,msgs=[];let ok=true;for(const t of ['W','A','P'])if(m.vals[t]!==m.orig[t]&&$('#xr'+t)){const [o,msg]=setFlow(t,m.from,m.to,m.vals[t]);ok=ok&&o;msgs.push(msg);}
   closeModal();if(msgs.length){toast(msgs.join(' '),!ok);ok?blip():buzz();}else toast('No changes.');}
 

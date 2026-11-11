@@ -133,6 +133,23 @@ body{margin:0}
 .tchip:hover{border-color:var(--amber)}
 details.more summary{cursor:pointer;font-size:13px;color:var(--muted)}
 details.more .ledger{margin-top:6px;font-size:13px}
+
+/* compact transfer dialog */
+.xhead{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+.xhead h2{margin-right:4px}
+.xhead select{max-width:220px}
+.xbtns{margin-left:auto;display:flex;gap:8px}
+.xrows{display:flex;flex-direction:column;gap:6px}
+.xrow{display:grid;grid-template-columns:92px minmax(0,1fr) 86px minmax(76px,auto);gap:2px 10px;align-items:center;padding:6px 10px;background:#1f192b;border:2px solid var(--panel-lo)}
+.xrow.na{opacity:.6;grid-template-columns:92px minmax(0,1fr)}
+.xrow .nm{display:flex;gap:8px;align-items:center;font-weight:600}
+.xrow .ico{width:12px;height:12px;background:var(--c);display:inline-block}
+.xrow input[type=number]{width:100%}
+.xrow .btn{white-space:nowrap}
+.xrow .info{grid-column:1/-1;display:flex;justify-content:space-between;gap:4px 10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.xrow.na .info{grid-column:auto}
+.fxline{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:13px;padding:6px 10px;background:#1f192b;border:2px solid var(--panel-lo)}
+@media (max-width:640px){.xrow{grid-template-columns:80px minmax(0,1fr) 70px}.xrow>.dim{display:none}.xbtns{margin-left:0;width:100%;justify-content:flex-end}}
 @media (max-width:760px){.designer{grid-template-columns:1fr}#xsec{width:100%}.floor{grid-template-columns:30px 70px 1fr 80px}.floor .bays{display:none}}
 </style>
 
