@@ -4,7 +4,8 @@ const cv=$('#map'),g=cv.getContext('2d');
 let TG={c:g,k:1,w:640,h:360};
 function fitCanvas(c,lw,lh){const r=c.getBoundingClientRect(),dpr=window.devicePixelRatio||1;let k=Math.max(1,r.width*dpr/lw);
   const W=Math.round(lw*k),H=Math.round(lh*k);if(c.width!==W||c.height!==H){c.width=W;c.height=H;}const x=c.getContext('2d');x.imageSmoothingEnabled=false;return {c:x,k:W/lw,w:lw,h:lh};}
-function fitMap(){TG=fitCanvas(cv,640,360);}
+let MAPLW=640;
+function fitMap(){TG=fitCanvas(cv,MAPLW,360);}
 function useTarget(t){const prev=TG;TG=t;return prev;}
 const F=(x,y,w,h,col)=>{const k=TG.k,X=Math.round(x*k),Y=Math.round(y*k);TG.c.fillStyle=col;TG.c.fillRect(X,Y,Math.max(1,Math.round((x+w)*k)-X),Math.max(1,Math.round((y+h)*k)-Y));};
 function blit(img,alpha=1){const c=TG.c;c.globalAlpha=alpha;c.drawImage(img,0,0,TG.c.canvas.width,TG.c.canvas.height);c.globalAlpha=1;}
@@ -27,7 +28,7 @@ function modal(html,wide){$('#modalRoot').innerHTML=`<div class="veil" id="veil"
 function closeModal(){UI.modal=null;$('#modalRoot').innerHTML='';refresh();}
 const meter=(v,max,c,mark)=>`<div class="meter"><i style="width:${clamp(max?v/max:0,0,1)*100}%;--c:${c}"></i>${mark!=null?`<b style="left:${mark}%"></b>`:''}</div>`;
 const L_=(a,b,cls='')=>`<span>${a}</span><span class="num ${cls}">${b}</span>`;
-function toMap(e){const r=cv.getBoundingClientRect();return [(e.clientX-r.left)*640/r.width,(e.clientY-r.top)*360/r.height];}
+function toMap(e){const r=cv.getBoundingClientRect();return [(e.clientX-r.left)*TG.w/r.width,(e.clientY-r.top)*TG.h/r.height];}
 function placeTip(e,html){const tip=$('#tip');if(!html){tip.hidden=true;return;}tip.hidden=false;tip.innerHTML=html;
   const w=tip.offsetWidth,h=tip.offsetHeight;let x=e.clientX+16,y=e.clientY+16;if(x+w>innerWidth-8)x=e.clientX-w-12;if(y+h>innerHeight-8)y=e.clientY-h-12;tip.style.left=x+'px';tip.style.top=y+'px';}
 function lineThick(ax,ay,bx,by,w,c){const dx=bx-ax,dy=by-ay,n=Math.max(1,Math.ceil(Math.max(Math.abs(dx),Math.abs(dy))));
@@ -40,7 +41,7 @@ function placeOnSegments(segs,obstacles,w,h,margin=2){
   const us=[.5];for(let d=.04;d<=.42;d+=.04)us.push(.5-d,.5+d);
   const placed=[],out=[];
   for(const [ax,ay,bx,by] of segs){let best=null,bs=1e9;const L=Math.hypot(bx-ax,by-ay)||1,nx=-(by-ay)/L,ny=(bx-ax)/L;
-    search:for(const off of [0,14,-14,24,-24,34,-34,44,-44])for(const u of us){const cx=clamp(ax+(bx-ax)*u+nx*off,w/2+1,640-w/2-1),cy=clamp(ay+(by-ay)*u+ny*off,h/2+1,360-h/2-1),r=[cx-w/2,cy-h/2,w,h];
+    search:for(const off of [0])for(const u of us){const cx=clamp(ax+(bx-ax)*u+nx*off,w/2+1,TG.w-w/2-1),cy=clamp(ay+(by-ay)*u+ny*off,h/2+1,TG.h-h/2-1),r=[cx-w/2,cy-h/2,w,h];
       let sc=0;for(const o of obstacles)sc+=ov(r,o)*3;for(const p of placed)sc+=ov(r,p)*2;const pen=Math.abs(u-.5)*4+Math.abs(off)*.6;sc+=pen;
       if(sc<bs){bs=sc;best=[cx,cy,r];}if(sc<=pen+1e-9)break search;}
     placed.push(best[2]);out.push([best[0],best[1]]);}

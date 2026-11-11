@@ -1,6 +1,8 @@
 /* ================= frame & routing ================= */
-function sizeMap(){const box=cv.parentElement;if(innerWidth<1051){cv.style.width='';cv.style.height='';return;}
-  const w=box.clientWidth,h=box.clientHeight;if(!w||!h)return;const sc=Math.min(w/640,h/360);cv.style.width=Math.floor(640*sc)+'px';cv.style.height=Math.floor(360*sc)+'px';}
+function sizeMap(){const box=cv.parentElement;if(innerWidth<1051){cv.style.width='';cv.style.height='';MAPLW=640;return;}
+  const w=box.clientWidth,h=box.clientHeight;if(!w||!h)return;
+  if(G&&G.phase==='ops'){cv.style.width=w+'px';cv.style.height=h+'px';MAPLW=Math.max(480,Math.round(360*w/h));return;}
+  const sc=Math.min(w/640,h/360);cv.style.width=Math.floor(640*sc)+'px';cv.style.height=Math.floor(360*sc)+'px';MAPLW=640;}
 function frame(t){if(G&&WD){sizeMap();fitMap();if(G.phase==='build')drawBuild(t);else if(S&&UI.N)drawOps(t);}requestAnimationFrame(frame);}
 cv.addEventListener('pointerdown',e=>{if(!G||UI.modal)return;const [x,y]=toMap(e);try{cv.setPointerCapture(e.pointerId);}catch(_){}G.phase==='build'?buildDown(x,y):opsDown(x,y);});
 cv.addEventListener('pointermove',e=>{if(!G)return;const [x,y]=toMap(e);UI.mouse=[x,y];G.phase==='build'?buildMove(e,x,y):opsMove(e,x,y);});

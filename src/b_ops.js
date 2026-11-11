@@ -377,7 +377,15 @@ function alerts(){if(!war())return;const N=compute();
 
 /* ================= operations: map ================= */
 const CW=58,CH=64;
-function cardPos(id){const s=st(id),px=s.x*4+2,py=s.y*4+2;return [clamp(px-29,1,640-CW-1),clamp(py-36,1,360-CH-1),px,py];}
+/* camera: frame the shelters in play. Positions are spread by the zoom; cards and badges keep their size. */
+let CAM={cx:320,cy:180,z:1};
+function updateCam(){const pts=ids().map(id=>[st(id).x*4+2,st(id).y*4+2]);
+  let x0=Math.min(...pts.map(p=>p[0]))-40,x1=Math.max(...pts.map(p=>p[0]))+40,y0=Math.min(...pts.map(p=>p[1]))-46,y1=Math.max(...pts.map(p=>p[1]))+38;
+  const zMin=Math.max(TG.w/640,TG.h/360),z=clamp(Math.min(TG.w/(x1-x0),TG.h/(y1-y0)),zMin,2.6),hw=TG.w/2/z,hh=TG.h/2/z;
+  CAM={z,cx:clamp((x0+x1)/2,hw,640-hw),cy:clamp((y0+y1)/2,hh,360-hh)};}
+const W2S=(x,y)=>[(x-CAM.cx)*CAM.z+TG.w/2,(y-CAM.cy)*CAM.z+TG.h/2];
+function blitCam(img,alpha=1){const c=TG.c,sw=TG.w/CAM.z,sh=TG.h/CAM.z;c.globalAlpha=alpha;c.drawImage(img,CAM.cx-sw/2,CAM.cy-sh/2,sw,sh,0,0,c.canvas.width,c.canvas.height);c.globalAlpha=1;}
+function cardPos(id){const s=st(id),[px,py]=W2S(s.x*4+2,s.y*4+2);return [clamp(px-29,1,TG.w-CW-1),clamp(py-36,1,TG.h-CH-1),px,py];}
 function gauge(x,y,v,c,blink,t){F(x,y,6,42,'#0f0b15');F(x+1,y+1,4,40,'#15111d');const h=R0(clamp(v,0,1)*40);const cc=blink&&!reduced&&(t/400|0)%2?'#ec4b3f':c;if(h>0){F(x+1,y+41-h,4,h,cc);F(x+1,y+41-h,4,1,'#ffffff66');}}
 function arrow(x,y,up,c){if(up){F(x+2,y,1,1,c);F(x+1,y+1,3,1,c);}else{F(x+1,y,3,1,c);F(x+2,y+1,1,1,c);}}
 function fitText(str,maxW){const c=TG.c,k=TG.k;c.font=`600 ${Math.max(10,Math.round(9.5*k))}px 'IBM Plex Sans Condensed','Arial Narrow',sans-serif`;if(c.measureText(str).width<=maxW*k)return str;while(str.length>3&&c.measureText(str+'.').width>maxW*k)str=str.slice(0,-1);return str.trimEnd()+'.';}
@@ -404,7 +412,7 @@ function drawCard(id,t){
   vals.forEach(([v,c,bl,tr],k)=>{const gx=x0+27+k*7;gauge(gx,y0+13,dark?0:v,c,bl,t);if(k===1&&s.leak>0&&!dark){const dy=reduced?0:(t/140|0)%7;F(gx+6,y0+44+dy,1,2,'#7cc0ff');}if(!dark&&Math.abs(tr)>=1)arrow(gx,y0+10,tr>0,tr>0?'#77d65b':'#ec4b3f');});
   txt(dark?(s.evac?'EVACUATED':'NO CARRIER'):`${s.pop}/${s.cap}`,x0+3,y0+55,dark?'#a197b4':s.pop>s.cap?'#ec4b3f':'#efe6cf');
 }
-function linkPts(i){const l=S.links[i],A=st(l.a),B=st(l.b);return [A.x*4+2,A.y*4+2,B.x*4+2,B.y*4+2];}
+function linkPts(i){const l=S.links[i],A=st(l.a),B=st(l.b);return [...W2S(A.x*4+2,A.y*4+2),...W2S(B.x*4+2,B.y*4+2)];}
 function drawTunnel(i,t){
   const l=S.links[i],[ax,ay,bx,by]=linkPts(i),cut=!l.ok||l.hp<=0,hurt=!cut&&l.hp<100,dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy),nx=-dy/L,ny=dx/L;
   if(UI.selLink===i||UI.hoverLink===i)lineThick(ax,ay,bx,by,13,UI.selLink===i?'#f2b33d':'#6d6290');
@@ -423,17 +431,15 @@ function drawChip(i,t){const l=S.links[i],[x,y]=UI.chips[i],cut=!l.ok||l.hp<=0,h
   if(l.collapsed){F(x+8,y-7,5,5,'#ec4b3f');F(x+9,y-6,3,3,'#1b1624');}
   ['W','A','P'].forEach((k,j)=>{const yy=y-5+j*4;if(!l.cap[k]){F(x-10,yy,20,2,'#2a2433');return;}const c=R.cap[k],u=c-R.left[k];F(x-10,yy,20,2,DIM[k]);if(u>0)F(x-10,yy,Math.max(1,R0(20*u/c)),2,u>=c-1?'#ffffff':COL[k]);});}
 function drawOps(t){
-  blit(TER);F(0,0,640,360,'rgba(16,11,26,.6)');blit(ROADS,.45);
-  for(const tw of WD.towns)txtS(tw.name,tw.x*4,tw.y*4+10,'#8a8099','center');
+  updateCam();blitCam(TER);F(0,0,TG.w,TG.h,'rgba(16,11,26,.6)');blitCam(ROADS,.45);
+  for(const tw of WD.towns){const [x,y]=W2S(tw.x*4,tw.y*4);txtS(tw.name,x,y+10,'#8a8099','center');}
   for(let i=0;i<S.links.length;i++)drawTunnel(i,t);
-  UI.chips=placeOnSegments(S.links.map((l,i)=>linkPts(i)),ids().map(id=>{const [x0,y0]=cardPos(id);return [x0-2,y0-2,CW+6,CH+6];}),28,16);
-  UI.chips.forEach(([x,y],i)=>{const [ax,ay,bx,by]=linkPts(i),L=Math.hypot(bx-ax,by-ay)||1,u=clamp(((x-ax)*(bx-ax)+(y-ay)*(by-ay))/(L*L),0,1),px=ax+(bx-ax)*u,py=ay+(by-ay)*u;
-    if(Math.hypot(x-px,y-py)>9){lineThick(px,py,x,y,3,'#0f0b15');lineThick(px,py,x,y,1,'#8a8099');}});
+  UI.chips=placeOnSegments(S.links.map((l,i)=>linkPts(i)),ids().map(id=>{const [x0,y0]=cardPos(id);return [x0-5,y0-5,CW+10,CH+10];}),28,16);
   for(const id of ids())drawCard(id,t);
   for(let i=0;i<S.links.length;i++)drawChip(i,t);
-  const d=UI.drag;if(d&&d.moved&&d.from){const s=st(d.from),ax=s.x*4+2,ay=s.y*4+2,L=Math.hypot(d.x-ax,d.y-ay),ph=reduced?0:(t*.03)%6;
+  const d=UI.drag;if(d&&d.moved&&d.from){const s=st(d.from),[ax,ay]=W2S(s.x*4+2,s.y*4+2),L=Math.hypot(d.x-ax,d.y-ay),ph=reduced?0:(t*.03)%6;
     for(let k=ph;k<L;k+=6){const x=ax+(d.x-ax)*k/L,y=ay+(d.y-ay)*k/L;F(x-1,y-1,3,3,'#0f0b15');F(x,y,2,2,'#f2b33d');}}
-  txtS(war()?'SEALED':'VENTED - ON GRID',634,349,war()?((t/600|0)%2||reduced?'#ec4b3f':'#5a1d1a'):'#8a8099','right');
+  txtS(war()?'SEALED':'VENTED - ON GRID',TG.w-6,TG.h-11,war()?((t/600|0)%2||reduced?'#ec4b3f':'#5a1d1a'):'#8a8099','right');
 }
 function opsNodeAt(x,y){for(const id of ids().slice().reverse()){const [x0,y0]=cardPos(id);if(x>=x0&&x<=x0+CW&&y>=y0&&y<=y0+CH)return id;}return null;}
 function opsLinkAt(x,y){if(UI.chips)for(let i=0;i<UI.chips.length;i++){const [cx,cy]=UI.chips[i];if(Math.abs(x-cx)<=14&&Math.abs(y-cy)<=8)return i;}let best=null,bd=7;S.links.forEach((l,i)=>{const [ax,ay,bx,by]=linkPts(i),dx=bx-ax,dy=by-ay,u=clamp(((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy),0,1),d=Math.hypot(ax+dx*u-x,ay+dy*u-y);if(d<bd){bd=d;best=i;}});return best;}
