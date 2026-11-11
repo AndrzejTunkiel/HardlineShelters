@@ -6,6 +6,23 @@ Open `index.html` in a browser to play. It is a single file with no build step a
 
 ## How it plays
 
+The game currently starts on a hand-made region (the `SCENARIO` in `src/b_main.js`). Six shelters with different strengths are already built and tunnelled together, and the war starts as soon as you take the watch. The building phase described below is still in the code; set `SKIP_BUILD = false` in `src/b_main.js` to play it.
+
+### The starting region
+
+| Shelter | Ground | Character |
+|---|---|---|
+| S1 Hollow Creek | 31 m of sand by the Harlan lake | Wide and shallow, roomy, weakest shaft, one generator short |
+| S2 Iron Ridge | Bare rock on the north ridge | Narrow, 44 m deep, very strong, one water tank |
+| S3 Blackwater | Lakeshore sand | Floods |
+| S4 Cedar Flats | Sand over rock | Balanced |
+| S5 Meridian | Thin soil over rock by Dunmore | Fills first, small fuel bunker |
+| S6 Kestrel | Sand past Oswin | Extra stores, sandy tunnels |
+
+Tunnels mix reliable deep-rock routes (to Iron Ridge, Cedar Flats, Meridian) with fragile shallow sand ones (to Hollow Creek, Kestrel, Blackwater).
+
+### Full game
+
 **1. Build.** Each game generates a new region with towns, lakes, forest and hills. Under every spot there is a layer of sand on top of rock.
 
 - Place up to six shelters on the map. Roads to them are laid automatically.

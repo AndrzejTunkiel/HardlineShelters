@@ -616,10 +616,10 @@ function openEnd(){UI.modal={type:'end'};const won=S.over==='won',H=S.hist.lengt
     <div><div class="dim" style="font-size:13px">Diesel, L</div>${chartSVG(H.map(h=>h.fuel_t),{w:320,h:120,color:'var(--fuel)',unit:'L of diesel'})}${ro(`End: ${num(H[H.length-1].fuel_t)} L`)}</div>
     <div><div class="dim" style="font-size:13px">Food, person-days</div>${chartSVG(H.map(h=>h.food_t),{w:320,h:120,color:'#c9a46a',unit:'person-days of food'})}${ro(`End: ${num(H[H.length-1].food_t)} person-days`)}</div>
   </div></div>
-  <div class="foot"><button class="btn" id="eBoard" type="button">Look at the board</button><button class="btn" id="eSame" type="button">Rebuild on this map</button><button class="btn primary" id="eNew" type="button">New region</button></div>`,1100);
+  <div class="foot"><button class="btn" id="eBoard" type="button">Look at the board</button>${SKIP_BUILD?'<button class="btn primary" id="eNew" type="button">Take the watch again</button>':'<button class="btn" id="eSame" type="button">Rebuild on this map</button><button class="btn primary" id="eNew" type="button">New region</button>'}</div>`,1100);
   bindCharts($('#modalRoot'));
-  $('#eNew').onclick=()=>{newGame();closeModal();};$('#eBoard').onclick=closeModal;
-  $('#eSame').onclick=()=>{G.phase='build';S=G.S=null;UI.sel=null;UI.selLink=null;UI.tab='site';recomputeRoads();closeModal();};}
+  $('#eNew').onclick=()=>{closeModal();if(SKIP_BUILD){newScenario();openTitle();}else newGame();};$('#eBoard').onclick=closeModal;
+  if($('#eSame'))$('#eSame').onclick=()=>{G.phase='build';S=G.S=null;UI.sel=null;UI.selLink=null;UI.tab='site';recomputeRoads();closeModal();};}
 
 
 /* ---------------- random event deck ---------------- */

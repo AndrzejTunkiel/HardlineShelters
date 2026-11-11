@@ -45,19 +45,46 @@ function refresh(){if(!G)return;if(G.phase==='ops')UI.N=compute();renderTabs();r
   const sc=$('#side').scrollTop;$('#side').innerHTML=G.phase==='build'?buildSide():opsSide();$('#side').scrollTop=sc;if(G.phase==='ops'&&UI.tab==='flows')bindFlows();renderTicker();}
 
 /* ================= game lifecycle ================= */
-function newGame(seed){seed=seed||((Math.random()*1e9)|0);G={v:3,seed,phase:'build',build:{budget:18e6,sites:[],tunnels:[]},S:null};S=null;
-  UI.sel=null;UI.selLink=null;UI.tab='site';UI.pick=null;genWorld(seed);refresh();}
+function newGame(seed,opts){seed=seed||((Math.random()*1e9)|0);G={v:3,seed,worldOpts:opts||null,phase:'build',build:{budget:18e6,sites:[],tunnels:[]},S:null};S=null;
+  UI.sel=null;UI.selLink=null;UI.tab='site';UI.pick=null;genWorld(seed,opts);refresh();}
+/* ---------------- the starting map ----------------
+   The building phase is switched off for now (SKIP_BUILD). Every game starts on
+   this hand-made region: seed 11, six shelters with distinct characters, and a
+   tunnel net that mixes deep rock runs with fragile shallow ones. */
+const SKIP_BUILD=true;
+const SCENARIO={seed:11,world:{cc:{x:80,y:45},towns:[{name:'HARLAN',x:31,y:21,pop:600},{name:'TESKE',x:91,y:18,pop:500},{name:'DUNMORE',x:128,y:66,pop:700},{name:'OSWIN',x:19,y:69,pop:500}]},
+  sites:[
+    {x:42,y:38,d0:16,floors:[16,16,16,16],mods:{BUNK:42,STORE:3,AIR:4,WATER:4,FILTER:2,FUEL:3,GEN:1},note:'Wide and shallow, sunk in 31 m of sand beside the Harlan lake. Roomy, close to town, and the weakest shaft in the region. One generator short.'},
+    {x:62,y:13,d0:10,floors:[10,10,10,10,10,10,10,10,10,10],mods:{BUNK:23,STORE:4,AIR:2,WATER:1,FILTER:2,FUEL:3,GEN:2},note:'A narrow shaft blasted 44 m into the bare rock of the north ridge. Very hard to hurt. Only one water tank, but good filtration.'},
+    {x:56,y:57,d0:14,floors:[14,14,14,14,14,14],mods:{BUNK:33,STORE:3,AIR:3,WATER:4,FILTER:1,FUEL:3,GEN:2},note:'On the shore of the big lake, in sand right down to the water table. Expect water where you do not want it.'},
+    {x:120,y:42,d0:12,floors:[12,12,12,12,12,12,12],mods:{BUNK:30,STORE:3,AIR:3,WATER:3,FILTER:2,FUEL:3,GEN:2},note:'Sand over rock in the east woods. Middle of the road in every way.'},
+    {x:113,y:59,d0:14,floors:[14,14,14,12,12,12,12],mods:{BUNK:38,STORE:3,AIR:3,WATER:3,FILTER:2,FUEL:1,GEN:2},note:'Thin soil over rock, next to Dunmore and its 700 people. It will fill first. The fuel bunker is smaller than it should be.'},
+    {x:32,y:66,d0:12,floors:[12,12,12,12,12,12,10,10],mods:{BUNK:28,STORE:5,AIR:3,WATER:3,FILTER:1,FUEL:2,GEN:2},note:'Out past Oswin. Extra stores on hand, but every tunnel to it runs through sand.'},
+  ],
+  tunnels:[['CC','S2',24,'WAP'],['CC','S4',20,'WAP'],['CC','S5',20,'WAP'],['CC','S3',12,'WAP'],['CC','S1',16,'WP'],['S1','S6',12,'WA'],['S3','S6',16,'AP'],['S4','S5',24,'WA']]};
+function newScenario(){
+  newGame(SCENARIO.seed,SCENARIO.world);
+  for(const d of SCENARIO.sites){const s=newSite(d.x,d.y);s.d0=d.d0;s.floors=d.floors.slice();s.mods={...d.mods};s.note=d.note;G.build.sites.push(s);}
+  G.build.sites.sort((a,b)=>a.slot-b.slot);recomputeRoads();
+  for(const [a,b,depth,lines] of SCENARIO.tunnels)G.build.tunnels.push({a,b,depth,W:lines.includes('W'),A:lines.includes('A'),P:lines.includes('P')});
+  clampTunnels();refresh();
+}
 function openTitle(){UI.modal={type:'title'};
-  modal(`<div class="title-screen"><span class="lbl">Region 7 Civil Defense · Shelter Program · 1986</span><h1>HARDLINE</h1>
-  <p>Region 7 has ${mil(18e6)} to build and stock fallout shelters for the towns on this map. You choose the sites, dig the shafts, furnish them and tunnel them together. Then you run them, through a war.</p>
-  <ul class="evlist"><li>Click open ground to place up to six shelters. Roads appear automatically.</li><li>Sand is cheap to dig but needs heavy lining and protects poorly. Rock is expensive and strong. Press G or use the geology button to see where the sand is deep.</li>
-  <li>In the designer, pick a top diameter. Lower floors can be narrower, never wider. Fill the bays with quarters, storage, tanks, filtration, scrubbers and generators.</li>
-  <li>Dig tunnels between shelters and to Shelter Control. Deeper tunnels in rock survive the shock.</li><li>Commission when you are ready. Supplies go in with construction; what you build is what they will have.</li></ul>
-  <button class="btn primary" id="tGo" type="button">Survey the region</button></div>`,720);
-  $('#tGo').onclick=closeModal;}
+  if(!SKIP_BUILD){modal(`<div class="title-screen"><span class="lbl">Region 7 Civil Defense · Shelter Program · 1986</span><h1>HARDLINE</h1>
+    <p>Region 7 has ${mil(18e6)} to build and stock fallout shelters. Choose the sites, dig the shafts, furnish them and tunnel them together. Then run them through a war.</p>
+    <button class="btn primary" id="tGo" type="button">Survey the region</button></div>`,720);$('#tGo').onclick=closeModal;return;}
+  const rows=G.build.sites.map(s=>{const st=siteStats(s);return `<tr><td><b>${s.id} ${esc(s.name.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()))}</b><div class="dim" style="font-size:13px;max-width:52ch">${esc(s.note||'')}</div></td><td class="num">${st.beds}</td><td class="num">${st.roster}</td><td class="num">${st.depth} m</td><td class="num">${R0(st.prot*100)}%</td></tr>`;}).join('');
+  const towns=WD.towns.map(t=>`${cap1(t.name)} (${t.pop})`).join(', ');
+  modal(`<div class="title-screen"><span class="lbl">Region 7 Civil Defense · Shelter Control · November 1986</span><h1>HARDLINE</h1>
+  <p>Six old missile silos around Shelter Control have been rebuilt as public fallout shelters for ${towns}. Their tanks are full and their staff are on station. You run the board that keeps the people inside alive when the sirens sound, and for as long as it takes relief to come.</p>
+  <div style="overflow-x:auto;width:100%"><table class="res"><thead><tr><th>Shelter</th><th>Beds</th><th>Roster</th><th>Depth</th><th>Protection</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <ul class="evlist"><li>Click a shelter to see its people, air, water, power, fuel and food.</li><li>Drag from one shelter to another to send water, air or power through the tunnels. Each tunnel carries only some of them, up to its capacity.</li>
+  <li>Spend spare kits on overhauls and tunnel repairs, open LiOH when air runs low, and answer the wardens' mail.</li><li>End the shift when you are done. Each shift is six hours.</li></ul>
+  <button class="btn primary" id="tGo" type="button">Take the watch</button></div>`,820);
+  $('#tGo').onclick=()=>commission();}
 function start(data){
-  if(data&&data.G&&data.G.v===3){G=data.G;S=G.S;genWorld(G.seed);if(G.phase==='build')recomputeRoads();if(data.ui)Object.assign(UI,data.ui);refresh();}
-  else{newGame();openTitle();}
+  if(data&&data.G&&data.G.v===3){G=data.G;S=G.S;genWorld(G.seed,G.worldOpts);if(G.phase==='build')recomputeRoads();if(data.ui)Object.assign(UI,data.ui);refresh();}
+  else{if(SKIP_BUILD)newScenario();else newGame();openTitle();}
   requestAnimationFrame(frame);if(document.fonts)document.fonts.load("600 12px 'IBM Plex Sans Condensed'").then(()=>{}).catch(()=>{});
 }
 window.claude?.hot?.snapshot?.(()=>({G,ui:{sel:UI.sel,tab:UI.tab,geo:UI.geo}}));

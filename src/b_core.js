@@ -42,7 +42,7 @@ function dijkstra(start,isTarget){
     for(const [dx,dy] of D4){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=MW||ny>=MH)continue;const j=idx(nx,ny);const nd=d+(WD.road[j]?.35:cellCost(j));if(nd<dist[j]){dist[j]=nd;prev[j]=i;h.push(nd,j);}}}
   return [start];
 }
-function genWorld(seed){
+function genWorld(seed,opts){
   const r=mul(seed),n1=makeNoise(seed+11),n2=makeNoise(seed+23),n3=makeNoise(seed+37);
   const N=MW*MH,elev=new Float32Array(N),moist=new Float32Array(N),sn=new Float32Array(N),sand=new Float32Array(N),type=new Uint8Array(N);
   for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const i=idx(x,y);elev[i]=fbm(n1,x/34,y/34,4);moist[i]=fbm(n2,x/20,y/20,3);sn[i]=fbm(n3,x/26,y/26,3);}
@@ -50,13 +50,14 @@ function genWorld(seed){
   const ss=Array.from(sn).sort((a,b)=>a-b),s0=ss[Math.floor(N*.04)],s1=ss[Math.floor(N*.96)];
   for(let i=0;i<N;i++){const e=elev[i];type[i]=e<wl?0:e>hl?3:moist[i]>.56?2:1;
     let m=3+clamp((sn[i]-s0)/(s1-s0),0,1)*37;if(e>hl)m-=(e-hl)/(emax-hl)*34;sand[i]=type[i]===0?0:clamp(m,0,42);}
-  const names=TOWN_NAMES.slice().sort(()=>r()-.5),towns=[];
+  const rn=mul(seed+5),names=TOWN_NAMES.slice();for(let i=names.length-1;i>0;i--){const j=Math.floor(rn()*(i+1));[names[i],names[j]]=[names[j],names[i]];}const towns=[];
   for(let k=0;k<6000&&towns.length<4;k++){const x=9+Math.floor(r()*(MW-18)),y=9+Math.floor(r()*(MH-18)),i=idx(x,y);
     if(type[i]===0||type[i]===3)continue;if(towns.some(t=>Math.hypot(t.x-x,t.y-y)<40))continue;
     towns.push({x,y,name:names[towns.length],pop:(3+Math.floor(r()*6))*100});}
   let cc=null;
   for(let rad=0;rad<70&&!cc;rad++)for(let dy=-rad;dy<=rad&&!cc;dy++)for(let dx=-rad;dx<=rad&&!cc;dx++){if(Math.max(Math.abs(dx),Math.abs(dy))!==rad)continue;
     const x=80+dx,y=45+dy;if(x<10||y<10||x>MW-11||y>MH-11)continue;const i=idx(x,y);if(type[i]===0||type[i]===3)continue;if(towns.some(t=>Math.hypot(t.x-x,t.y-y)<14))continue;cc={x,y};}
+  if(opts&&opts.towns){towns.length=0;opts.towns.forEach(t=>towns.push({...t}));cc={...opts.cc};}
   WD={seed,elev,sand,type,towns,cc,wl,hl,road:new Uint8Array(N),base:null};
   WD.road[idx(cc.x,cc.y)]=1;
   const order=towns.slice().sort((a,b)=>Math.hypot(a.x-cc.x,a.y-cc.y)-Math.hypot(b.x-cc.x,b.y-cc.y));
