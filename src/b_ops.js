@@ -9,10 +9,10 @@ function commission(){
   for(const b of G.build.sites){const s=siteStats(b),m=b.mods;
     sites[b.id]=opsSite(b.id,b.name,'WARDEN '+b.warden,{cap:s.beds,assigned:s.roster,scrubCap:s.scrub,scrubBays:m.AIR,plantCap:m.FILTER*600,filterBays:m.FILTER,gcap:s.gcap,
       wcap:s.wcap,water:s.wcap,fcap:s.fcap,fuel:s.fcap,foodCap:s.food,food:s.food,prot:s.prot,depth:s.depth,d0:b.d0,sandM:s.sandM,
-      gen:q(70+rnd()*30),scrub:q(68+rnd()*32),plant:q(60+rnd()*40),spares:1+(rnd()<.4?1:0),lioh:m.STORE?1+(rnd()<.5?1:0):0,x:b.x,y:b.y});}
+      gen:q(70+rnd()*30),scrub:q(68+rnd()*32),plant:q(60+rnd()*40),spares:1+m.STORE+(rnd()<.4?1:0),lioh:m.STORE?m.STORE+(rnd()<.5?1:0):0,x:b.x,y:b.y});}
   const order=['CC',...G.build.sites.map(s=>s.id)];
   const links=G.build.tunnels.map(t=>{const ts=tunnelStats(t);return {a:t.a,b:t.b,cap:{W:t.W?2000:0,A:t.A?600:0,P:t.P?60:0},hp:100,ok:true,rel:ts.rel,depth:t.depth,rock:ts.rockFrac,len:ts.len};});
-  S=G.S={v:3,ids:order,shift:0,defcon:1,grid:true,relief:10+Math.floor(rnd()*5),over:null,sites,links,flows:[],orders:[],mails:[],log:[],events:[],flags:{},queue:[],deck:{},nextMail:1,nextOrder:1,nextFlow:1};
+  S=G.S={v:3,ids:order,shift:0,defcon:1,grid:true,relief:22+Math.floor(rnd()*9),over:null,sites,links,flows:[],orders:[],mails:[],log:[],events:[],flags:{},queue:[],deck:{},nextMail:1,nextOrder:1,nextFlow:1};
   G.phase='ops';UI.sel='CC';UI.selLink=null;UI.tab='shelter';UI.pick=null;
   ev('Shelters commissioned. Tanks full, staff of twelve at each site.',true);
   closeModal();fadeToWar();
@@ -302,13 +302,16 @@ function endShift(){
     s.water=R0(clamp(s.water+n.wnet,0,s.wcap));s.air=clamp(s.air+n.airDelta,0,100);
     if(!W_){s.gen-=.3;s.scrub-=.4+rnd()*.6;s.plant-=.3+rnd()*.5;}
     else{s.food=Math.max(0,s.food-n.foodUse);
-      if(n.genUsed>0)s.gen-=1+rnd()*2;s.scrub-=(.5+rnd()*1.5)*n.scrubF;s.plant-=.6*n.plantF;
+      if(n.genUsed>0)s.gen-=1+rnd()*1.6;s.scrub-=(.8+rnd()*1.4)*n.scrubF;s.plant-=(.6+rnd()*1.1)*n.plantF;
+      if(s.leak)s.leak=R0(s.leak*1.12+15);
+      if(s.hull<40&&rnd()<.25){s.leak+=100;ev(`${id}: the cracked lining is letting water through.`);}
+      if(s.morale<20&&rnd()<.35)unrest(s);
       s.morale-=1;if(s.air<60)s.morale-=4;if(n.wnet<0&&s.water<-n.wnet*3)s.morale-=4;if(n.baseF<1)s.morale-=5;if(s.pop>s.cap)s.morale-=3;if(s.hull<50)s.morale-=3;
       if(s.fuel<=0&&s.gcap&&!S.flags['nofuel'+id]){S.flags['nofuel'+id]=1;ev(`${id} generator stopped: fuel exhausted.`);}
-      for(const k of ['gen','scrub','plant'])if(s[k]>0&&s[k]<25&&rnd()<.15){s[k]=0;ev(`${id} ${SYSNAME[k]} failed outright.`);}
-      if(s.air<25)casualties(s,s.pop*.05,'hypoxia');else if(s.air<40)casualties(s,s.pop*.015,'CO2 poisoning');
-      if(s.water<=0){s.dry++;if(s.dry>=2)casualties(s,s.pop*.03,'dehydration');}else s.dry=0;
-      if(s.food<=0){s.hungry++;s.morale-=6;if(s.hungry>=4)casualties(s,s.pop*.01,'starvation');}else s.hungry=0;}
+      for(const k of ['gen','scrub','plant'])if(s[k]>0&&s[k]<35&&rnd()<.22){s[k]=0;ev(`${id} ${SYSNAME[k]} failed outright.`);}
+      if(s.air<30)casualties(s,s.pop*.04,'hypoxia');else if(s.air<45)casualties(s,s.pop*.015,'CO2 poisoning');else if(s.air<55&&rnd()<.4)casualties(s,s.pop*.005,'CO2 poisoning');
+      if(s.water<=0){s.dry++;if(s.dry>=1)casualties(s,s.pop*.035,'dehydration');}else s.dry=0;
+      if(s.food<=0){s.hungry++;s.morale-=6;if(s.hungry>=3)casualties(s,s.pop*.02,'starvation');}else s.hungry=0;}
     for(const k of ['gen','scrub','plant','morale','hull'])s[k]=clamp(s[k],0,100);
     if(s.repair){s.repair.left--;if(s.repair.left<=0){const [x,y]=s.repair.link.split('-');const l=findLink(x,y);l.ok=true;l.hp=100;ev(`${s.repair.link} repaired by ${id} crew.`);s.repair=null;s.busy=null;}}else s.busy=null;}
   for(const o of S.orders.filter(o=>o.eta<=S.shift+1)){const s=st(o.site);
@@ -317,6 +320,7 @@ function endShift(){
   S.orders=S.orders.filter(o=>o.eta>S.shift+1);
   S.shift++;const t=S.shift;
   if(t===1)intake(1);
+  if(t===2||t===3)stragglers();
   if(t>=2&&t<S.relief)drawEvents();
   if(t===S.relief-3)sendKey('update18');
   if(t>=3)checkEvac();
@@ -573,9 +577,9 @@ function openEnd(){UI.modal={type:'end'};const won=S.over==='won';let alive=0,de
 
 /* ---------------- random event deck ---------------- */
 function pickW(items,wf){const w=items.map(wf),tot=w.reduce((a,b)=>a+b,0);if(tot<=0)return null;let x=rnd()*tot;for(let i=0;i<items.length;i++){x-=w[i];if(x<=0)return items[i];}return items[items.length-1];}
-const DECK=[{k:'aftershock',w:3,max:2},{k:'genloss',w:2,max:2},{k:'vent',w:2,max:1},{k:'fire',w:2,max:2},{k:'leak',w:3,max:3},{k:'flood',w:2,max:1},
-  {k:'fuelbad',w:1.5,max:1},{k:'sick',w:1.5,max:1},{k:'hatch',w:2.5,max:2},{k:'delay',w:1,max:1},{k:'scrubfault',w:2,max:2}];
-function drawEvents(){const n=rnd()<.2?0:rnd()<.7?1:2;
+const DECK=[{k:'aftershock',w:3,max:5},{k:'genloss',w:2.5,max:4},{k:'vent',w:2,max:2},{k:'fire',w:2.5,max:5},{k:'leak',w:3,max:6},{k:'flood',w:2,max:3},
+  {k:'fuelbad',w:1.5,max:2},{k:'sick',w:2,max:3},{k:'hatch',w:2.5,max:4},{k:'delay',w:1.2,max:2},{k:'scrubfault',w:2.5,max:5}];
+function drawEvents(){const r=rnd(),n=r<.08?0:r<.5?1:r<.86?2:3;
   for(let i=0;i<n;i++){const pool=DECK.filter(d=>(S.deck[d.k]||0)<d.max);const d=pickW(pool,x=>x.w);if(!d)return;if(runEvent(d.k))S.deck[d.k]=(S.deck[d.k]||0)+1;}}
 function runEvent(k){const live=liveShelters();if(!live.length)return false;const any=()=>live[Math.floor(rnd()*live.length)];
   switch(k){
@@ -608,3 +612,9 @@ Object.assign(MAILS,{
   sick:p=>({from:p.s,subj:'SICKNESS',body:`Control,\n\nDysentery. It started in the bunk bays two days in and it is moving fast in the crowding. ${st(p.s).pop} people on ${st(p.s).cap} beds. We have lost people already. Clean water is the only medicine we have plenty of, and not for long.\n${sig(p.s)}`}),
   delay:p=>({from:'HQ',subj:'CONVOY DELAYED',body:`ALL SHELTERS,\n\nThe relief convoy lost a bridge and is rerouting. Add ${p.d*6} hours. New ETA ${dtg(S.relief)}.\n\nI am sorry.\n- DIR. T. HOLLIS`}),
 });
+
+function stragglers(){const live=liveShelters();if(!live.length)return;const id=pickW(live,i=>{const [t,d]=nearestTown(st(i).x,st(i).y);return 1/(1+d/25);});const s=st(id),n=R0(s.cap*(.06+rnd()*.1));
+  s.pop+=n;ev(`${n} stragglers forced the outer door at ${id} before it resealed.`);}
+function unrest(s){const fl=R0(s.food*.12),wl=R0(s.water*.08);s.food-=fl;s.water-=wl;s.morale+=8;ev(`Unrest at ${s.id}: stores broken into. ${num(fl)} rations and ${num(wl)} L lost.`);
+  if(rnd()<.4)casualties(s,s.pop*.006,'violence');
+  if(!S.flags['unrest'+s.id]){S.flags['unrest'+s.id]=1;send({from:s.id,subj:'TROUBLE IN THE BUNK BAYS',body:`Control,\n\nPeople broke into the storeroom last night. We lost ${num(fl)} rations and ${num(wl)} L of water before the staff got it back under control. Morale is ${R0(s.morale)}%. People need to see that someone is doing something.\n${sig(s.id)}`});}}

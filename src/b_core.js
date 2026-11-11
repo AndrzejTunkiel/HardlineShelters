@@ -14,7 +14,7 @@ function mul(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(see
 const MW=160,MH=90,MPC=25,MAXSITES=6;
 const WAR=0,RELIEF=12;
 const UNIT={W:'L/shift',A:'CFM',P:'kW'},RNAME={W:'WATER',A:'AIR',P:'POWER'},LOSS={W:.98,A:.95,P:.97};
-const CFM_PER_PERSON=5,WATER_PER_PERSON=3,FOOD_PER_PERSON=.25;
+const CFM_PER_PERSON=5,WATER_PER_PERSON=3.5,FOOD_PER_PERSON=.25;
 const COL={W:'#4a9be8',A:'#9df0e4',P:'#f2b33d',F:'#e8793c',FOOD:'#c9a46a'};
 const DIM={W:'#24456b',A:'#3a6560',P:'#6a5222'};
 const SITE_NAMES=['HOLLOW CREEK','IRON RIDGE','BLACKWATER','CEDAR FLATS','MERIDIAN','KESTREL'];
@@ -105,7 +105,7 @@ function renderRoads(){
 /* ================= construction model ================= */
 const MODS={
   BUNK:{name:'Living quarters',cost:4000,color:'#e8c48a',desc:'8 beds in triple bunks'},
-  STORE:{name:'Storage',cost:6000,color:'#a0805a',desc:'1,500 person-days of food, filters and parts'},
+  STORE:{name:'Storage',cost:6000,color:'#a0805a',desc:'1,500 person-days of food, 1 spares kit, 1 LiOH pallet'},
   AIR:{name:'Air scrubbers',cost:35000,color:'#9df0e4',desc:'700 CFM, enough for 140 people · 7 kW'},
   WATER:{name:'Water tank',cost:14000,color:'#4a9be8',desc:'8,000 L'},
   FILTER:{name:'Water filtration',cost:30000,color:'#2fb8c9',desc:'recycles 600 L a shift at half recovery · 6 kW'},
@@ -162,9 +162,9 @@ function suggestMods(s,target){
   const bays=s.floors.reduce((a,d)=>a+baysFor(d),0);if(!bays)return m;
   for(let beds=Math.max(8,(target||9999));beds>=8;beds-=8){
     m.BUNK=Math.ceil(beds/8);const {roster}=rosterFor(s,m.BUNK*8),p=roster+12;
-    m.AIR=Math.ceil(p*CFM_PER_PERSON*1.08/700);m.FILTER=Math.max(1,Math.round(p*WATER_PER_PERSON/600/2));
-    m.WATER=Math.ceil(p*WATER_PER_PERSON*.6*14/8000);m.STORE=Math.ceil(p*FOOD_PER_PERSON*14/1500);
-    const load=15+.06*p+m.AIR*7+4+m.FILTER*6;m.GEN=Math.ceil(load*1.15/60);m.FUEL=Math.ceil(2*load*12/2000);
+    m.AIR=Math.ceil(p*CFM_PER_PERSON*1.3/700);m.FILTER=Math.max(1,Math.round(p*WATER_PER_PERSON/600/2));
+    m.WATER=Math.ceil(p*WATER_PER_PERSON*.6*20/8000);m.STORE=Math.ceil(p*FOOD_PER_PERSON*22/1500);
+    const load=15+.06*p+m.AIR*7+4+m.FILTER*6;m.GEN=Math.ceil(load*1.15/60);m.FUEL=Math.ceil(2*load*16/2000);
     const used=MOD_ORDER.reduce((a,k)=>a+m[k],0);if(used<=bays)return m;
     if(target)target=0;
   }
