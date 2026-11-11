@@ -7,6 +7,7 @@ cv.addEventListener('pointerleave',()=>{UI.hover=null;UI.hoverLink=null;UI.hover
 $('#side').addEventListener('click',e=>G.phase==='build'?buildSideClick(e):opsSideClick(e));
 $('#tabs').addEventListener('click',e=>{const t=e.target.closest('[data-tab]');if(!t)return;if(UI.tab===t.dataset.tab&&(t.dataset.tab==='shelter'||t.dataset.tab==='site'))UI.selLink=null;UI.tab=t.dataset.tab;refresh();});
 $('#mailBtn').onclick=()=>openMail();
+$('#menuBtn').onclick=()=>{UI.modal={type:'confirm'};modal(`<h2>Leave this watch?</h2><p>${G.phase==='ops'&&!S.over?'The current mission will be abandoned.':'Return to the main menu.'}</p><div class="foot"><button class="btn" id="cNo" type="button">Stay</button><button class="btn primary" id="cYes" type="button">Main menu</button></div>`);$('#cNo').onclick=closeModal;$('#cYes').onclick=()=>{closeModal();openMenu();};};
 $('#mainBtn').onclick=()=>{if(G.phase==='build'){openCommission();return;}if(S.over){openEnd();return;}endShift();refresh();};
 document.addEventListener('keydown',e=>{
   if(!G||e.ctrlKey||e.metaKey||e.altKey)return;const m=UI.modal,tag=(e.target.tagName||'').toLowerCase();
@@ -47,11 +48,10 @@ function refresh(){if(!G)return;if(G.phase==='ops')UI.N=compute();renderTabs();r
 /* ================= game lifecycle ================= */
 function newGame(seed,opts){seed=seed||((Math.random()*1e9)|0);G={v:3,seed,worldOpts:opts||null,phase:'build',build:{budget:18e6,sites:[],tunnels:[]},S:null};S=null;
   UI.sel=null;UI.selLink=null;UI.tab='site';UI.pick=null;genWorld(seed,opts);refresh();}
-/* ---------------- the starting map ----------------
-   The building phase is switched off for now (SKIP_BUILD). Every game starts on
-   this hand-made region: seed 11, six shelters with distinct characters, and a
-   tunnel net that mixes deep rock runs with fragile shallow ones. */
-const SKIP_BUILD=true;
+/* ---------------- campaign ----------------
+   One hand-made region (SCENARIO) and a campaign that opens it shelter by
+   shelter. Later missions add more shelters, a longer wait for relief, faster
+   wear, more events per shift and new kinds of trouble (DECK tiers). */
 const SCENARIO={seed:11,world:{cc:{x:80,y:45},towns:[{name:'HARLAN',x:31,y:21,pop:600},{name:'TESKE',x:91,y:18,pop:500},{name:'DUNMORE',x:128,y:66,pop:700},{name:'OSWIN',x:19,y:69,pop:500}]},
   sites:[
     {x:42,y:38,d0:16,floors:[16,16,16,16],mods:{BUNK:42,STORE:3,AIR:4,WATER:4,FILTER:2,FUEL:3,GEN:1},note:'Wide and shallow, sunk in 31 m of sand beside the Harlan lake. Roomy, close to town, and the weakest shaft in the region. One generator short.'},
@@ -62,29 +62,74 @@ const SCENARIO={seed:11,world:{cc:{x:80,y:45},towns:[{name:'HARLAN',x:31,y:21,po
     {x:32,y:66,d0:12,floors:[12,12,12,12,12,12,10,10],mods:{BUNK:28,STORE:5,AIR:3,WATER:3,FILTER:1,FUEL:2,GEN:2},note:'Out past Oswin. Extra stores on hand, but every tunnel to it runs through sand.'},
   ],
   tunnels:[['CC','S2',24,'WAP'],['CC','S4',20,'WAP'],['CC','S5',20,'WAP'],['CC','S3',12,'WAP'],['CC','S1',16,'WP'],['S1','S6',12,'WA'],['S3','S6',16,'AP'],['S4','S5',24,'WA']]};
-function newScenario(){
+const MISSIONS=[
+  {title:'First Watch',sites:['S5'],relief:[8,10],tier:1,wear:.6,ev:[.35,.85,1],pass:.8,
+   brief:'Meridian, beside Dunmore, is the only shelter open tonight. One deep tunnel runs from it to you at Shelter Control. Learn the board: keep the air clean, the water flowing and the generator fed until relief comes.',
+   learn:['Click Meridian to read its people, air, water, power, fuel and food.','Spend spare kits on overhauls before equipment fails.','Drag from Control to Meridian to send water, air or power down the tunnel.']},
+  {title:'Two Doors',sites:['S4','S5'],relief:[12,15],tier:2,wear:.75,ev:[.25,.75,.97],pass:.8,
+   brief:'Cedar Flats opens beside Meridian. Dunmore will crowd Meridian while Cedar Flats has room to spare. The tunnels between you are deep in rock.',
+   learn:['New: aftershocks, generator damage, people at the hatch, more arrivals from town.','Move people: open a transfer, choose People, and walk them through the crawlway. Up to 80 a shift per tunnel.']},
+  {title:'The Lake',sites:['S1','S3','S6'],relief:[15,18],tier:3,wear:.85,ev:[.15,.65,.93],pass:.75,
+   brief:'The three western shelters were sunk in sand: cheap, crowded and fragile. The tunnels between them run through the same sand. Hollow Creek is a generator short.',
+   learn:['New: groundwater floods, bad diesel, door seal failures, exhaust leaks.','New: total tunnel collapse. The crawlway is gone for good; some of the lines inside may survive.']},
+  {title:'North Ridge',sites:['S1','S2','S4','S5'],relief:[18,22],tier:4,wear:.95,ev:[.1,.55,.88],pass:.7,
+   brief:'Iron Ridge, 44 m down in rock, joins Hollow Creek, Cedar Flats and Meridian. The strong shelters will have to carry the weak ones.',
+   learn:['New: dysentery, staff down with fever, spoiled rations, crushes on the stairs.']},
+  {title:'Five Lights',sites:['S1','S2','S3','S4','S5'],relief:[20,25],tier:5,wear:1,ev:[.08,.5,.86],pass:.65,
+   brief:'Five shelters and a long wait. Blackwater rejoins the net on its fragile lakeshore tunnel.',
+   learn:['New: fallout plumes and convoy delays.']},
+  {title:'Region 7',sites:['S1','S2','S3','S4','S5','S6'],relief:[22,30],tier:5,wear:1,ev:[.08,.5,.86],pass:.6,
+   brief:'Every shelter in the region and everything that can go wrong. This is the watch the program was built for.',
+   learn:['Everything from the earlier missions, all at once.']},
+];
+const SKIP_BUILD=true;
+const PKEY='hardline.campaign.v1';let PROG_MEM={unlocked:0,best:{}};
+function loadProg(){try{const v=JSON.parse(localStorage.getItem(PKEY)||'null');if(v&&typeof v==='object')return v;}catch(e){}return PROG_MEM;}
+function saveResult(i,pct,passed){const p=loadProg();p.best=p.best||{};p.best[i]=Math.max(p.best[i]||0,pct);if(passed)p.unlocked=Math.max(p.unlocked||0,i+1);PROG_MEM=p;try{localStorage.setItem(PKEY,JSON.stringify(p));}catch(e){}}
+function starsFor(i,pct,won=true){const M=MISSIONS[i];if(!won||pct<M.pass)return '<span class="stars">☆☆☆</span>';const n=pct>=.95?3:pct>=(M.pass+1)/2?2:1;return `<span class="stars">${'★'.repeat(n)}${'☆'.repeat(3-n)}</span>`;}
+function missionRelief(){const r=G.mission!=null?MISSIONS[G.mission].relief:[22,30];return r[0]+Math.floor(rnd()*(r[1]-r[0]+1));}
+function buildMission(sites){
   newGame(SCENARIO.seed,SCENARIO.world);
-  for(const d of SCENARIO.sites){const s=newSite(d.x,d.y);s.d0=d.d0;s.floors=d.floors.slice();s.mods={...d.mods};s.note=d.note;G.build.sites.push(s);}
+  SCENARIO.sites.forEach((d,slot)=>{const id='S'+(slot+1);if(!sites.includes(id))return;const s=newSite(d.x,d.y);
+    s.slot=slot;s.id=id;s.name=SITE_NAMES[slot];s.warden=WARDENS[slot];s.d0=d.d0;s.floors=d.floors.slice();s.mods={...d.mods};s.note=d.note;G.build.sites.push(s);});
   G.build.sites.sort((a,b)=>a.slot-b.slot);recomputeRoads();
-  for(const [a,b,depth,lines] of SCENARIO.tunnels)G.build.tunnels.push({a,b,depth,W:lines.includes('W'),A:lines.includes('A'),P:lines.includes('P')});
-  clampTunnels();refresh();
+  const has=new Set(['CC',...sites]);
+  for(const [a,b,depth,lines] of SCENARIO.tunnels)if(has.has(a)&&has.has(b))G.build.tunnels.push({a,b,depth,W:lines.includes('W'),A:lines.includes('A'),P:lines.includes('P')});
+  clampTunnels();
 }
-function openTitle(){UI.modal={type:'title'};
-  if(!SKIP_BUILD){modal(`<div class="title-screen"><span class="lbl">Region 7 Civil Defense · Shelter Program · 1986</span><h1>HARDLINE</h1>
-    <p>Region 7 has ${mil(18e6)} to build and stock fallout shelters. Choose the sites, dig the shafts, furnish them and tunnel them together. Then run them through a war.</p>
-    <button class="btn primary" id="tGo" type="button">Survey the region</button></div>`,720);$('#tGo').onclick=closeModal;return;}
-  const rows=G.build.sites.map(s=>{const st=siteStats(s);return `<tr><td><b>${s.id} ${esc(s.name.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()))}</b><div class="dim" style="font-size:13px;max-width:52ch">${esc(s.note||'')}</div></td><td class="num">${st.beds}</td><td class="num">${st.roster}</td><td class="num">${st.depth} m</td><td class="num">${R0(st.prot*100)}%</td></tr>`;}).join('');
-  const towns=WD.towns.map(t=>`${cap1(t.name)} (${t.pop})`).join(', ');
+function newScenario(){buildMission(MISSIONS[MISSIONS.length-1].sites);G.mission=MISSIONS.length-1;refresh();}
+function startMission(i){buildMission(MISSIONS[i].sites);G.mission=i;UI.saved=false;refresh();openBriefing(i);}
+function startFreeBuild(){newGame();G.mission=null;UI.saved=false;refresh();
+  modal(`<div class="title-screen"><span class="lbl">Free build · random region</span><h1>HARDLINE</h1><p>${mil(18e6)} to build and stock up to six shelters. Click open ground to place one, then design its shaft, furnish it and dig tunnels. Commission when ready; the war starts at once.</p><button class="btn primary" id="tGo" type="button">Survey the region</button></div>`,720);
+  UI.modal={type:'title'};$('#tGo').onclick=closeModal;}
+function openMenu(){
+  if(!G||G.phase!=='build'||G.build.sites.length){buildMission([]);G.mission=null;refresh();}
+  UI.modal={type:'title'};const p=loadProg(),un=Math.min(p.unlocked||0,MISSIONS.length-1);
+  const cards=MISSIONS.map((M,i)=>{const locked=i>un,best=p.best&&p.best[i]!=null?p.best[i]:null;
+    return `<button class="mcard${locked?' locked':''}" data-m="${i}" type="button" ${locked?'disabled':''}>
+      <span class="lbl">Mission ${i+1}${locked?' · locked':''}</span><b>${esc(M.title)}</b>
+      <span class="dim">${M.sites.length} shelter${M.sites.length>1?'s':''} · relief in ${M.relief[0]*6/24<2?`${M.relief[0]*6}–${M.relief[1]*6} h`:`${(M.relief[0]*6/24).toFixed(1)}–${(M.relief[1]*6/24).toFixed(1)} days`}</span>
+      <span class="mstat">${best!=null?`Best ${R0(best*100)}% ${starsFor(i,best)}`:locked?'Pass the mission before':'Not played'}</span></button>`;}).join('');
   modal(`<div class="title-screen"><span class="lbl">Region 7 Civil Defense · Shelter Control · November 1986</span><h1>HARDLINE</h1>
-  <p>Six old missile silos around Shelter Control have been rebuilt as public fallout shelters for ${towns}. Their tanks are full and their staff are on station. You run the board that keeps the people inside alive when the sirens sound, and for as long as it takes relief to come.</p>
+    <p>Six old missile silos around Shelter Control have been rebuilt as public fallout shelters. The campaign opens them one by one. Each mission is a single war: keep enough people alive until the relief convoy arrives.</p>
+    <div class="mgrid">${cards}</div>
+    <div class="row"><button class="btn" id="mFree" type="button">Free build on a random region</button><span class="dim" style="font-size:13px">Progress is saved in this browser.</span></div></div>`,920);
+  document.querySelectorAll('.mcard[data-m]').forEach(b=>b.onclick=()=>{if(!b.disabled){closeModal();startMission(+b.dataset.m);}});
+  $('#mFree').onclick=()=>{closeModal();startFreeBuild();};
+}
+function openBriefing(i){const M=MISSIONS[i];UI.modal={type:'title'};
+  const rows=G.build.sites.map(s=>{const st=siteStats(s);return `<tr><td><b>${s.id} ${esc(s.name.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()))}</b><div class="dim" style="font-size:13px;max-width:52ch">${esc(s.note||'')}</div></td><td class="num">${st.beds}</td><td class="num">${st.roster}</td><td class="num">${st.depth} m</td><td class="num">${R0(st.prot*100)}%</td></tr>`;}).join('');
+  modal(`<div class="title-screen"><span class="lbl">Mission ${i+1} of ${MISSIONS.length}</span><h2 style="font-size:28px">${esc(M.title)}</h2>
+  <p>${esc(M.brief)}</p>
+  <div class="kv" style="width:100%"><div><span class="lbl">Relief arrives</span><span class="v">after ${M.relief[0]}–${M.relief[1]} shifts</span></div><div><span class="lbl">To pass</span><span class="v">${R0(M.pass*100)}% alive</span></div><div><span class="lbl">Tunnels</span><span class="v">${G.build.tunnels.length}</span></div></div>
   <div style="overflow-x:auto;width:100%"><table class="res"><thead><tr><th>Shelter</th><th>Beds</th><th>Roster</th><th>Depth</th><th>Protection</th></tr></thead><tbody>${rows}</tbody></table></div>
-  <ul class="evlist"><li>Click a shelter to see its people, air, water, power, fuel and food.</li><li>Drag from one shelter to another to send water, air or power through the tunnels. Each tunnel carries only some of them, up to its capacity.</li>
-  <li>Spend spare kits on overhauls and tunnel repairs, open LiOH when air runs low, and answer the wardens' mail.</li><li>End the shift when you are done. Each shift is six hours.</li></ul>
-  <button class="btn primary" id="tGo" type="button">Take the watch</button></div>`,820);
-  $('#tGo').onclick=()=>commission();}
+  <ul class="evlist">${M.learn.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
+  <div class="row" style="width:100%"><button class="btn" id="bBack" type="button">Main menu</button><button class="btn primary" id="tGo" type="button">Take the watch</button></div></div>`,820);
+  $('#tGo').onclick=()=>commission();$('#bBack').onclick=()=>{closeModal();openMenu();};}
+function openTitle(){openMenu();}
 function start(data){
   if(data&&data.G&&data.G.v===3){G=data.G;S=G.S;genWorld(G.seed,G.worldOpts);if(G.phase==='build')recomputeRoads();if(data.ui)Object.assign(UI,data.ui);refresh();}
-  else{if(SKIP_BUILD)newScenario();else newGame();openTitle();}
+  else openMenu();
   requestAnimationFrame(frame);if(document.fonts)document.fonts.load("600 12px 'IBM Plex Sans Condensed'").then(()=>{}).catch(()=>{});
 }
 window.claude?.hot?.snapshot?.(()=>({G,ui:{sel:UI.sel,tab:UI.tab,geo:UI.geo}}));

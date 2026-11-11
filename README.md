@@ -6,9 +6,26 @@ Open `index.html` in a browser to play. It is a single file with no build step a
 
 ## How it plays
 
-The game currently starts on a hand-made region (the `SCENARIO` in `src/b_main.js`). Six shelters with different strengths are already built and tunnelled together, and the war starts as soon as you take the watch. The building phase described below is still in the code; set `SKIP_BUILD = false` in `src/b_main.js` to play it.
+### Campaign
 
-### The starting region
+The main menu opens a six-mission campaign on one hand-made region (`SCENARIO` and `MISSIONS` in `src/b_main.js`). Each mission is one war: keep enough people alive until the relief convoy arrives. Passing a mission unlocks the next. Best results are saved in the browser.
+
+| # | Mission | Shelters | Relief after (shifts) | To pass | New trouble |
+|---|---|---|---|---|---|
+| 1 | First Watch | Meridian | 8-10 | 80% | Leaks, fires, scrubber faults; births, rats, a machinist |
+| 2 | Two Doors | Cedar Flats, Meridian | 12-15 | 80% | Aftershocks, generator damage, people at the hatch, crowds from town |
+| 3 | The Lake | Hollow Creek, Blackwater, Kestrel | 15-18 | 75% | Floods, bad diesel, door seal failures, exhaust leaks, tunnel collapse |
+| 4 | North Ridge | Hollow Creek, Iron Ridge, Cedar Flats, Meridian | 18-22 | 70% | Dysentery, staff fever, spoiled rations, crushes on the stairs |
+| 5 | Five Lights | All but Kestrel | 20-25 | 65% | Fallout plumes, convoy delays |
+| 6 | Region 7 | All six | 22-30 | 60% | Everything |
+
+Later missions also wear equipment faster and draw more events per shift. Free build (a random region and the building phase) is on the main menu.
+
+**Moving people.** Open a transfer between two shelters and use the People row. People walk through tunnel crawlways, up to 80 per tunnel per shift. Severed and collapsed tunnels cannot be walked.
+
+**Tunnel collapse.** A collapsed tunnel never carries people again and cannot be repaired. Each of its water, air and power lines has an even chance of surviving inside the rubble.
+
+### The region
 
 | Shelter | Ground | Character |
 |---|---|---|
@@ -18,8 +35,6 @@ The game currently starts on a hand-made region (the `SCENARIO` in `src/b_main.j
 | S4 Cedar Flats | Sand over rock | Balanced |
 | S5 Meridian | Thin soil over rock by Dunmore | Fills first, small fuel bunker |
 | S6 Kestrel | Sand past Oswin | Extra stores, sandy tunnels |
-
-Tunnels mix reliable deep-rock routes (to Iron Ridge, Cedar Flats, Meridian) with fragile shallow sand ones (to Hollow Creek, Kestrel, Blackwater).
 
 ### Full game
 

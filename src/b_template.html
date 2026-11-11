@@ -84,6 +84,18 @@ td.spark{padding:2px 8px}
 .endcols.three{grid-template-columns:repeat(3,minmax(0,1fr))}
 .cause{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 10px;align-items:center;font-size:14px}
 @media (max-width:760px){.endcols,.endcols.three{grid-template-columns:1fr}}
+
+/* campaign menu */
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;width:100%}
+.mcard{display:flex;flex-direction:column;gap:4px;text-align:left;padding:12px;background:#1f192b;border:2px solid var(--panel-lo);box-shadow:inset 2px 2px 0 var(--panel-hi);cursor:pointer;color:var(--paper)}
+.mcard:hover:not([disabled]){border-color:var(--amber)}
+.mcard b{font-family:var(--f-label);font-size:20px;font-weight:700}
+.mcard.locked{opacity:.45;cursor:not-allowed}
+.mstat{font-size:13px;color:var(--muted)}
+.stars{color:var(--amber);letter-spacing:.1em}
+.mresult{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;padding:10px 12px;border:2px solid var(--panel-lo);background:#1f192b}
+.mresult b{font-family:var(--f-label);font-size:22px}
+.mresult.pass b{color:var(--ok)}.mresult.fail b{color:var(--bad)}
 @media (max-width:760px){.designer{grid-template-columns:1fr}#xsec{width:100%}.floor{grid-template-columns:30px 70px 1fr 80px}.floor .bays{display:none}}
 </style>
 
@@ -95,6 +107,7 @@ td.spark{padding:2px 8px}
     <div class="stat" id="st2"><span class="lbl"></span><strong class="num"></strong></div>
     <div class="stat" id="st3"><span class="lbl"></span><strong class="num"></strong></div>
     <div class="stat" id="st4"><span class="lbl"></span><strong class="num"></strong></div>
+    <button class="btn" id="menuBtn" type="button">Menu</button>
     <button class="btn" id="mailBtn" type="button">Mail<span class="badge" id="mailBadge" hidden></span></button>
     <button class="btn primary" id="mainBtn" type="button">Commission ▸</button>
   </header>

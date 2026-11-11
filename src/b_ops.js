@@ -12,7 +12,7 @@ function commission(){
       gen:q(70+rnd()*30),scrub:q(68+rnd()*32),plant:q(60+rnd()*40),spares:1+m.STORE+(rnd()<.4?1:0),lioh:m.STORE?m.STORE+(rnd()<.5?1:0):0,x:b.x,y:b.y});}
   const order=['CC',...G.build.sites.map(s=>s.id)];
   const links=G.build.tunnels.map(t=>{const ts=tunnelStats(t);return {a:t.a,b:t.b,cap:{W:t.W?2000:0,A:t.A?600:0,P:t.P?60:0},hp:100,ok:true,rel:ts.rel,depth:t.depth,rock:ts.rockFrac,len:ts.len};});
-  S=G.S={v:3,ids:order,shift:0,defcon:1,grid:true,relief:22+Math.floor(rnd()*9),over:null,sites,links,flows:[],orders:[],mails:[],log:[],events:[],flags:{},queue:[],deck:{},hist:[],stats:{cause:{},overhauls:0,lioh:0,repairs:0,events:0,flowsSet:0,taken:0,evacs:0,moved:{W:0,A:0,P:0},cuts:0},nextMail:1,nextOrder:1,nextFlow:1};
+  S=G.S={v:3,ids:order,shift:0,defcon:1,grid:true,relief:missionRelief(),tier:G.mission!=null?MISSIONS[G.mission].tier:5,wear:G.mission!=null?MISSIONS[G.mission].wear:1,evRate:G.mission!=null?MISSIONS[G.mission].ev:[.08,.5,.86],pmoved:{},over:null,sites,links,flows:[],orders:[],mails:[],log:[],events:[],flags:{},queue:[],deck:{},hist:[],stats:{cause:{},overhauls:0,lioh:0,repairs:0,events:0,flowsSet:0,taken:0,evacs:0,moved:{W:0,A:0,P:0},cuts:0},nextMail:1,nextOrder:1,nextFlow:1};
   G.phase='ops';UI.sel='CC';UI.selLink=null;UI.tab='shelter';UI.pick=null;
   ev('Shelters commissioned. Tanks full, staff of twelve at each site.',true);
   closeModal();fadeToWar();
@@ -33,6 +33,7 @@ function fadeToWar(){
   f.onclick=finish;
 }
 const linkName=l=>l.a+'-'+l.b;
+const passable=l=>l.ok&&!l.collapsed;
 function findLink(x,y){return S.links.find(l=>(l.a===x&&l.b===y)||(l.a===y&&l.b===x));}
 function bfs(from,to,ok){if(from===to)return null;const prev={[from]:null},q=[from];
   while(q.length){const n=q.shift();if(n===to)break;S.links.forEach((l,i)=>{if(!ok(i))return;const m=l.a===n?l.b:l.b===n?l.a:null;if(m&&!(m in prev)){prev[m]=[n,i];q.push(m);}});}
@@ -241,7 +242,7 @@ function scheduled(k){const D=S.flags.defects||[],F=S.flags;
     case 'vent':if(ok(F.shock))sendKey(k,{s:F.shock});return;
     case 'genloss':if(ok(F.genloss))sendKey(k,{s:F.genloss,cut:F.genlossCut});return;
     case 'evac':{const c=liveShelters().map(id=>{const n=compute()[id];return [id,st(id).air+(n.wnet<0?Math.min(40,st(id).water/-n.wnet*4):40)];}).sort((a,b)=>a[1]-b[1]);
-      for(const [id,score] of c){if(score>110)break;const to=neighbors(id).find(x=>{const l=findLink(id,x);return l.ok&&x!=='CC'&&!st(x).lost&&!st(x).evac&&st(x).pop<st(x).cap*1.25;});
+      for(const [id,score] of c){if(score>110)break;const to=neighbors(id).find(x=>{const l=findLink(id,x);return passable(l)&&x!=='CC'&&!st(x).lost&&!st(x).evac&&st(x).pop<st(x).cap*1.25;});
         if(to){sendKey('evac',{s:id,to});return;}}
       const h=liveShelters()[0];if(h)sendKey('hold',{s:h});return;}
     case 'hatch':{const c=liveShelters().map(id=>{const [t,d]=nearestTown(st(id).x,st(id).y);return [id,t,d];}).sort((a,b)=>a[2]-b[2])[0];if(c)sendKey(k,{s:c[0],town:c[1].name,n:80+Math.floor(rnd()*7)*10});return;}
@@ -255,7 +256,7 @@ const EFFECTS={
   drill:[m=>{const a=st(m.p.a),b=st(m.p.b);if(a.busy||b.busy)return [false,'One of those sites already has a task this shift.'];a.busy=b.busy='INTAKE DRILL';a.morale+=10;b.morale+=15;S.flags.drill=[m.p.a,m.p.b];return [true,'Drill approved. Both sites run intake this shift.'];},
     ()=>[true,"'Understood, Control.'"]],
   vent:[m=>{const s=st(m.p.s);s.air=clamp(s.air+20,0,100);s.morale-=12;s.hull-=4;ev(`${m.p.s} vent purge: air +20, fallout in the intake room.`);return [true,'Purge authorized. Air +20.'];},()=>[true,'They stay sealed.']],
-  evac:[m=>{const a=st(m.p.s),b=st(m.p.to);if(a.lost||a.evac)return [false,'That shelter is already dark.'];const l=findLink(m.p.s,m.p.to);if(!l||!l.ok)return [false,'The tunnel is severed. Nobody can get through.'];
+  evac:[m=>{const a=st(m.p.s),b=st(m.p.to);if(a.lost||a.evac)return [false,'That shelter is already dark.'];const l=findLink(m.p.s,m.p.to);if(!l||!passable(l))return [false,'The tunnel is severed. Nobody can get through.'];
       const n=a.pop;b.pop+=n;a.pop=0;a.evac=true;S.stats.evacs++;b.morale-=8;S.flows=S.flows.filter(f=>f.from!==m.p.s&&f.to!==m.p.s);S.queue.push([S.shift+1,'guests',m.p]);ev(`${m.p.s} evacuated: ${n} people moved to ${m.p.to}.`);return [true,`Evacuation approved. ${n} people moving.`];},
     m=>{st(m.p.s).morale-=10;S.queue.push([S.shift+1,'hold',m.p]);return [true,"'Holding.'"];}],
   hatch:[m=>{const s=st(m.p.s);s.pop+=m.p.n;s.civ+=m.p.n;s.air-=4;s.morale+=6;S.flags.hatch=m.p.n;S.stats.taken+=m.p.n;S.queue.push([S.shift+1,'hatchopen',m.p]);ev(`${m.p.s} took in ${m.p.n} people from the surface.`);return [true,`Hatch opened. ${m.p.n} people in decon.`];},
@@ -284,7 +285,7 @@ function fix(id,sys){const s=st(id);if(s.lost||s.evac)return [false,`${id} is da
   let extra='';if(sys==='plant'&&s.leak){s.leak=0;extra=' Tank leak sealed.';}ev(`${id} overhauled ${SYSNAME[sys]}: ${before}% > ${R0(s[sys])}%.${extra}`,true);
   return [true,`${id} ${SYSNAME[sys]} ${before}% → ${R0(s[sys])}%. Kit used; staff busy this shift.${extra}`];}
 function useLioh(id){const s=st(id);if(s.lioh<1)return [false,`${id} has no LiOH.`];s.lioh--;if(S.stats)S.stats.lioh++;const b=R0(s.air);s.air=clamp(s.air+15,0,100);ev(`${id} opened a LiOH pallet: air ${b}% > ${R0(s.air)}%.`,true);return [true,`${id} opened a LiOH pallet. Air ${b}% → ${R0(s.air)}%.`];}
-function repair(x,y,who){const l=findLink(x,y);if(!l)return [false,'No such tunnel.'];if(l.ok&&l.hp>=100)return [false,'That tunnel is in full working order.'];
+function repair(x,y,who){const l=findLink(x,y);if(!l)return [false,'No such tunnel.'];if(l.collapsed&&!l.ok)return [false,'That tunnel has collapsed. It cannot be reopened.'];if(l.ok&&l.hp>=100)return [false,'That tunnel is in full working order.'];
   if(ids().some(i=>st(i).repair?.link===linkName(l)))return [false,'A crew is already on it.'];
   const s=st(who);if(!s||s.lost||s.evac)return [false,`${who} is dark.`];if(s.busy)return [false,`${who} staff are busy.`];if(s.spares<1)return [false,`${who} has no spare kit.`];
   const n=l.ok?1:2;s.spares--;if(S.stats)S.stats.repairs++;s.repair={link:linkName(l),left:n};s.busy='REPAIR '+linkName(l);ev(`${who} sent a crew to repair ${linkName(l)}.`,true);
@@ -302,7 +303,7 @@ function endShift(){
     s.water=R0(clamp(s.water+n.wnet,0,s.wcap));s.air=clamp(s.air+n.airDelta,0,100);
     if(!W_){s.gen-=.3;s.scrub-=.4+rnd()*.6;s.plant-=.3+rnd()*.5;}
     else{s.food=Math.max(0,s.food-n.foodUse);
-      if(n.genUsed>0)s.gen-=1+rnd()*1.6;s.scrub-=(.8+rnd()*1.4)*n.scrubF;s.plant-=(.6+rnd()*1.1)*n.plantF;
+      const wr=S.wear||1;if(n.genUsed>0)s.gen-=(1+rnd()*1.6)*wr;s.scrub-=(.8+rnd()*1.4)*n.scrubF*wr;s.plant-=(.6+rnd()*1.1)*n.plantF*wr;
       if(s.leak)s.leak=R0(s.leak*1.12+15);
       if(s.hull<40&&rnd()<.25){s.leak+=100;ev(`${id}: the cracked lining is letting water through.`);}
       if(s.morale<20&&rnd()<.35)unrest(s);
@@ -313,12 +314,12 @@ function endShift(){
       if(s.water<=0){s.dry++;if(s.dry>=1)casualties(s,s.pop*.035,'dehydration');}else s.dry=0;
       if(s.food<=0){s.hungry++;s.morale-=6;if(s.hungry>=3)casualties(s,s.pop*.02,'starvation');}else s.hungry=0;}
     for(const k of ['gen','scrub','plant','morale','hull'])s[k]=clamp(s[k],0,100);
-    if(s.repair){s.repair.left--;if(s.repair.left<=0){const [x,y]=s.repair.link.split('-');const l=findLink(x,y);l.ok=true;l.hp=100;ev(`${s.repair.link} repaired by ${id} crew.`);s.repair=null;s.busy=null;}}else s.busy=null;}
+    if(s.repair){s.repair.left--;if(s.repair.left<=0){const [x,y]=s.repair.link.split('-');const l=findLink(x,y);l.ok=true;l.hp=100;ev(`${s.repair.link} repaired by ${id} crew.`);s.repair=null;s.busy=null;}}else s.busy=s.ill>0?(s.ill--,'STAFF DOWN WITH FEVER'):null;}
   for(const o of S.orders.filter(o=>o.eta<=S.shift+1)){const s=st(o.site);
     if(o.code==='DSL')s.fuel=Math.min(s.fcap,s.fuel+2000*o.q);if(o.code==='H2O')s.water=Math.min(s.wcap,s.water+10000*o.q);if(o.code==='FOOD')s.food=Math.min(s.foodCap,s.food+3000*o.q);
     if(o.code==='KIT')s.spares+=o.q;if(o.code==='LIOH')s.lioh+=o.q;ev(`Delivered: ${o.q} x ${o.code} to ${o.site}.`);}
   S.orders=S.orders.filter(o=>o.eta>S.shift+1);
-  S.shift++;const t=S.shift;
+  S.shift++;const t=S.shift;S.pmoved={};
   if(t===1)intake(1);
   if(t===2||t===3)stragglers();
   if(t>=2&&t<S.relief)drawEvents();
@@ -406,6 +407,7 @@ function drawTunnel(i,t){
   const l=S.links[i],[ax,ay,bx,by]=linkPts(i),cut=!l.ok||l.hp<=0,hurt=!cut&&l.hp<100,dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy),nx=-dy/L,ny=dx/L;
   if(UI.selLink===i||UI.hoverLink===i)lineThick(ax,ay,bx,by,13,UI.selLink===i?'#f2b33d':'#6d6290');
   lineThick(ax,ay,bx,by,11,'#0f0b15');lineThick(ax,ay,bx,by,9,cut?'#191420':'#2c2438');
+  if(l.collapsed){const r=mul(300+i);for(let k=0;k<26;k++){const u=.35+r()*.3,o=(r()-.5)*12;F(ax+dx*u+nx*o,ay+dy*u+ny*o,2,2,r()<.5?'#5d5e6b':'#0f0b15');}}
   const OFF={W:-3,A:0,P:3},R=UI.N._R[i];
   for(const k of ['W','A','P'])if(l.cap[k])lineThick(ax+nx*OFF[k],ay+ny*OFF[k],bx+nx*OFF[k],by+ny*OFF[k],2,cut?'#2a2433':DIM[k]);
   if(cut||hurt){const r=mul(100+i),n=cut?50:R0((100-l.hp)/3);for(let k=0;k<n;k++){const u=r(),o=(r()-.5)*10;F(ax+dx*u+nx*o,ay+dy*u+ny*o,r()<.5?2:1,1,'#0f0b15');}}
@@ -415,7 +417,8 @@ function drawTunnel(i,t){
 function drawChip(i,t){const l=S.links[i],[ax,ay,bx,by]=linkPts(i),x=(ax+bx)/2,y=(ay+by)/2,cut=!l.ok||l.hp<=0,hurt=!cut&&l.hp<100,R=UI.N._R[i];
   const rep=ids().some(id=>st(id).repair?.link===linkName(l));
   F(x-14,y-8,28,16,cut?(rep?'#f2b33d':((t/500|0)%2&&!reduced?'#5a1d1a':'#ec4b3f')):hurt||UI.selLink===i?'#f2b33d':'#4a4060');F(x-13,y-7,26,14,'#1b1624');
-  if(cut){txt(rep?'FIX':'CUT',x,y-4,rep?'#f2b33d':'#ec4b3f','center');return;}
+  if(cut){txt(l.collapsed?'GONE':rep?'FIX':'CUT',x,y-4,rep?'#f2b33d':'#ec4b3f','center');return;}
+  if(l.collapsed){F(x+8,y-7,5,5,'#ec4b3f');F(x+9,y-6,3,3,'#1b1624');}
   ['W','A','P'].forEach((k,j)=>{const yy=y-5+j*4;if(!l.cap[k]){F(x-10,yy,20,2,'#2a2433');return;}const c=R.cap[k],u=c-R.left[k];F(x-10,yy,20,2,DIM[k]);if(u>0)F(x-10,yy,Math.max(1,R0(20*u/c)),2,u>=c-1?'#ffffff':COL[k]);});}
 function drawOps(t){
   blit(TER);F(0,0,640,360,'rgba(16,11,26,.6)');blit(ROADS,.45);
@@ -454,7 +457,7 @@ function shelterPanel(id){
   const s=st(id),n=UI.N[id],stt=siteStatus(s,n),dark=s.lost||s.evac,L=n.L,W_=war();
   let h=`<div class="sect"><div class="row"><span class="big">${id} ${esc(s.name)}</span><span class="chip ${stt}">${stt}</span></div>
     <div class="row dim"><span>${esc(s.warden==='YOU'?'Your post':s.warden)} · ${s.depth} m deep</span><span>${s.busy?'Staff: '+esc(s.busy.toLowerCase()):'Staff idle'}</span></div>
-    ${dark?'':`<div class="actions"><button class="btn" data-act="send" type="button">Send water, air or power…</button></div>`}</div>
+    ${dark?'':`<div class="actions"><button class="btn" data-act="send" type="button">Send supplies or people…</button></div>`}</div>
   <div class="sect"><div class="row"><span class="lbl">People</span><span class="num">${s.pop} / ${s.cap} beds</span></div>${meter(s.pop,Math.max(s.cap,s.pop),s.pop>s.cap?'var(--bad)':'var(--paper)',s.pop>s.cap?s.cap/s.pop*100:null)}
     <div class="row dim" style="font-size:14px"><span>Staff ${s.staff}${!W_?` · ${s.assigned} on the intake roster`:''}</span><span>Dead ${s.dead} · Morale ${R0(s.morale)}% · Hull ${R0(s.hull)}%</span></div></div>`;
   if(dark)return h;
@@ -480,11 +483,11 @@ function shelterPanel(id){
   h+=`<div class="sect"><span class="lbl">Tunnels</span><div class="lines">${S.links.map((l,i)=>[l,i]).filter(([l])=>l.a===id||l.b===id).map(([l,i])=>lineItem(l,i)).join('')||'<span class="dim">No tunnels. This shelter is on its own.</span>'}</div></div>`;
   return h;}
 function lineItem(l,i){const R=UI.N._R[i],cut=!l.ok||l.hp<=0,rep=ids().some(x=>st(x).repair?.link===linkName(l));
-  return `<div class="lineitem" data-line="${i}"><b>${linkName(l)}</b><div class="minibars">${['W','A','P'].map(k=>l.cap[k]?`<div class="mb"><i style="width:${R.cap[k]?(R.cap[k]-R.left[k])/R.cap[k]*100:0}%;--c:${COL[k]}"></i></div>`:'<div class="mb" style="opacity:.3"></div>').join('')}</div><span class="${cut?'neg':l.hp<100?'':'dim'}" style="font-size:13px">${cut?(rep?'repairing':'severed'):l.hp<100?l.hp+'%':'ok'}</span></div>`;}
+  return `<div class="lineitem" data-line="${i}"><b>${linkName(l)}</b><div class="minibars">${['W','A','P'].map(k=>l.cap[k]?`<div class="mb"><i style="width:${R.cap[k]?(R.cap[k]-R.left[k])/R.cap[k]*100:0}%;--c:${COL[k]}"></i></div>`:'<div class="mb" style="opacity:.3"></div>').join('')}</div><span class="${cut?'neg':l.hp<100?'':'dim'}" style="font-size:13px">${l.collapsed?'collapsed':cut?(rep?'repairing':'severed'):l.hp<100?l.hp+'%':'ok'}</span></div>`;}
 function routeMax(t,a,b){const r=staticRoute(t,a,b);if(!r)return 0;return Math.floor(Math.min(...r.links.map(i=>S.links[i].cap[t]*S.links[i].hp/100)));}
 function linePanel(i){const l=S.links[i],R=UI.N._R[i],cut=!l.ok||l.hp<=0,rep=ids().find(x=>st(x).repair?.link===linkName(l));
   let h=`<div class="sect"><div class="row"><span class="big">${linkName(l)} tunnel</span><span class="chip ${cut?'CRIT':l.hp<100?'WARN':'OK'}">${cut?'SEVERED':l.hp+'%'}</span></div>
-    <div class="dim">${num(l.len)} m at ${l.depth} m deep, ${R0(l.rock*100)}% through rock. Built reliability ${R0(l.rel*100)}%.${cut?' Carries nothing until repaired.':l.hp<100?` Damaged: carries ${l.hp}% of its rating.`:''}</div>
+    <div class="dim">${num(l.len)} m at ${l.depth} m deep, ${R0(l.rock*100)}% through rock. Built reliability ${R0(l.rel*100)}%.${l.collapsed?` <span class="neg">Collapsed: no passage for people${l.ok?'; the surviving lines still work':''}.</span>`:''}${cut?' Carries nothing until repaired.':l.hp<100?` Damaged: carries ${l.hp}% of its rating.`:''}</div>
     <div class="actions"><button class="btn small" data-act="xf" data-a="${l.a}" data-b="${l.b}" type="button">Send ${l.a} → ${l.b}</button><button class="btn small" data-act="xf" data-a="${l.b}" data-b="${l.a}" type="button">Send ${l.b} → ${l.a}</button></div></div><div class="sect"><span class="lbl">Capacity in use this shift</span>`;
   for(const k of ['W','A','P']){if(!l.cap[k]){h+=`<div class="row dim"><span>${cap1(RNAME[k])}</span><span>no line laid</span></div>`;continue;}const u=R.cap[k]-R.left[k];
     h+=`<div class="row"><span style="color:${COL[k]}">${cap1(RNAME[k])}</span><span class="num">${num(u)} / ${num(R.cap[k])} ${UNIT[k]}</span></div>${meter(u,R.cap[k]||1,COL[k])}`;}
@@ -510,6 +513,15 @@ function bindFlows(){document.querySelectorAll('#side input[data-fid]').forEach(
   inp.addEventListener('input',()=>{const f=S.flows.find(x=>x.id===+inp.dataset.fid);inp.nextElementSibling.textContent=`Set ${num(+inp.value)} ${UNIT[f.type]} · release to apply`;});
   inp.addEventListener('change',()=>{const f=S.flows.find(x=>x.id===+inp.dataset.fid);act(setFlow(f.type,f.from,f.to,+inp.value));});});}
 
+/* ---------------- people ---------------- */
+const CRAWL=80;
+function peopleRoute(a,b){const r=bfs(a,b,i=>passable(S.links[i])&&((S.pmoved||{})[i]||0)<CRAWL);if(!r)return null;r.cap=Math.min(...r.links.map(i=>CRAWL-((S.pmoved||{})[i]||0)));return r;}
+function movePeople(a,b,n){const A=st(a),B=st(b);if(!A||!B||A.lost||A.evac||B.lost||B.evac)return [false,'One of those shelters is dark.'];
+  const r=peopleRoute(a,b);if(!r)return [false,`No open crawlway connects ${a} and ${b}, or this shift's capacity is used up.`];
+  n=Math.min(n,r.cap,Math.max(0,A.pop-A.staff));if(n<=0)return [false,`${a} has nobody it can send.`];
+  A.pop-=n;B.pop+=n;B.morale=clamp(B.morale-n/40,0,100);A.morale=clamp(A.morale+n/60,0,100);S.pmoved=S.pmoved||{};for(const i of r.links)S.pmoved[i]=(S.pmoved[i]||0)+n;
+  if(S.stats)S.stats.people=(S.stats.people||0)+n;ev(`${n} people walked from ${a} to ${b} via ${r.nodes.join('-')}.`,true);
+  return [true,`${n} people are walking from ${a} to ${b} through ${r.nodes.join(' → ')}.`];}
 /* ---------------- transfer dialog ---------------- */
 function openTransfer(from,to){
   if(!to){to=neighbors(from).find(x=>!st(x).lost&&!st(x).evac)||ids().find(x=>x!==from);}
@@ -527,12 +539,17 @@ function renderTransfer(){const m=UI.modal;
     if(!r){h+=`<div class="xres na"><div class="top"><i class="ico" style="--c:${COL[t]}"></i><h3>${nm}</h3></div><div class="dim">No working ${t==='W'?'water main':t==='A'?'air duct':'power cable'} connects these shelters.</div></div>`;continue;}
     h+=`<div class="xres"><div class="top"><i class="ico" style="--c:${COL[t]}"></i><h3>${nm}</h3><input type="number" id="xn${t}" min="0" max="${mx}" step="${step}" value="${m.vals[t]}" aria-label="${nm} amount"><span class="dim">${UNIT[t]}</span></div>
       <input type="range" id="xr${t}" min="0" max="${mx}" step="${step}" value="${m.vals[t]}" style="--c:${COL[t]}" aria-label="${nm} slider"><div class="row dim" style="font-size:14px"><span>Route ${r.nodes.join(' → ')} · line limit ${num(mx)} ${UNIT[t]}</span><span>${spare(t,m.from)}</span></div><div id="xp${t}" style="font-size:14px"></div></div>`;}
+  {const pr=peopleRoute(m.from,m.to),A=st(m.from),avail=Math.max(0,A.pop-A.staff),mx=pr?Math.min(pr.cap,avail):0;
+   h+=`<div class="xres${pr&&mx?'':' na'}"><div class="top"><i class="ico" style="--c:var(--paper)"></i><h3>People</h3>${pr&&mx?`<input type="number" id="xnH" min="0" max="${mx}" step="5" value="${Math.min(mx,40)}" aria-label="People to move"><button class="btn small" id="xMove" type="button">Move now</button>`:''}</div>
+     ${pr&&mx?`<input type="range" id="xrH" min="0" max="${mx}" step="5" value="${Math.min(mx,40)}" style="--c:var(--paper)" aria-label="People slider"><div class="row dim" style="font-size:14px"><span>Crawlway ${pr.nodes.join(' → ')} · ${pr.cap} more can pass this shift</span><span>${m.to} has ${st(m.to).pop} on ${st(m.to).cap} beds</span></div>`
+     :`<div class="dim">${pr?`${m.from} has nobody it can send.`:'No open crawlway between these shelters, or this shift\'s capacity is used up. Collapsed and severed tunnels cannot be walked.'}</div>`}</div>`;}
   h+=`<div class="fx" id="xfx"></div><div class="dim" style="font-size:13px">A flow repeats every shift until you change it.${S.grid?' Before the grid fails, air and power flows wait on standby; water flows run now.':''}</div>
     <div class="foot"><button class="btn" id="xCancel" type="button">Cancel</button><button class="btn primary" id="xApply" type="button">Apply flows</button></div>`;
   modal(h,760);
   const re=()=>{const f=$('#xFrom').value,t=$('#xTo').value;openTransfer(f,t===f?null:t);};$('#xFrom').onchange=re;$('#xTo').onchange=re;
   $('#xSwap').onclick=()=>openTransfer(m.to,m.from);$('#xCancel').onclick=closeModal;$('#xApply').onclick=applyTransfer;
   for(const t of ['W','A','P']){const r=$('#xr'+t),n=$('#xn'+t);if(!r)continue;r.oninput=()=>{m.vals[t]=+r.value;n.value=r.value;updatePreview();};n.oninput=()=>{m.vals[t]=clamp(+n.value||0,0,+n.max);r.value=m.vals[t];updatePreview();};}
+  if($('#xMove')){const r=$('#xrH'),n=$('#xnH');r.oninput=()=>{n.value=r.value;};n.oninput=()=>{r.value=n.value;};$('#xMove').onclick=()=>{const res=movePeople(m.from,m.to,+n.value);toast(res[1],!res[0]);res[0]?blip():buzz();UI.N=compute();refresh();openTransfer(m.from,m.to);};}
   updatePreview();}
 function spare(t,id){const s=st(id),n=UI.N[id];if(t==='W')return `${id} holds ${num(s.water)} L`;if(S.grid)return 'standby until the grid fails';
   if(t==='A'){const sp=R0(n.scrubOut-n.need);return sp>0?`${id} has ${num(sp)} CFM spare`:`<span class="neg">${id} has no spare air</span>`;}
@@ -596,6 +613,7 @@ function openEnd(){UI.modal={type:'end'};const won=S.over==='won',H=S.hist.lengt
   let alive=0,dead=0;for(const id of ids()){alive+=st(id).pop;dead+=st(id).dead;}
   const total=alive+dead,pct=total?alive/total:0,b=buildTotals(),spent=b.sites+b.tun,days=(S.shift*6/24);
   const rating=!won?'The board went dark before relief arrived.':pct>.95?'Nearly every shelter held. Hollis will want to know how.':pct>.8?'The region held. Not everyone came up the elevators.':pct>.55?'Most came home. The tunnels remember the rest.':pct>.3?'Relief found the shelters half empty.':'Relief found more silence than voices.';
+  const M=G.mission!=null?MISSIONS[G.mission]:null,passed=!!(M&&won&&pct>=M.pass);if(M&&!UI.saved){UI.saved=true;saveResult(G.mission,won?pct:0,passed);}
   const tile=(l,v,sub='',cls='')=>`<div><span class="lbl">${l}</span><span class="v ${cls}">${v}</span>${sub?`<span class="dim" style="font-size:13px">${sub}</span>`:''}</div>`;
   const ro=(txt)=>`<div class="readout dim" data-rest="${esc(txt)}">${esc(txt)}</div>`;
   const rows=ids().map(id=>{const s=st(id),pv=H.map(h=>h.pop[id]||0),minAir=Math.min(...H.map(h=>h.air[id]??100)),dry=H.filter(h=>h.water[id]===0).length,start=Math.max(...pv,1);
@@ -603,31 +621,39 @@ function openEnd(){UI.modal={type:'end'};const won=S.over==='won',H=S.hist.lengt
   const causes=Object.entries(S.stats?.cause||{}).sort((a,b)=>b[1]-a[1]),cmax=Math.max(1,...causes.map(c=>c[1]));
   const st_=S.stats||{moved:{}};
   modal(`<div class="row"><h2>${won?`Relief convoy at Shelter Control · ${dtg(S.shift)}`:'Shelter Control has stopped transmitting'}</h2></div>
+${M?`<div class="mresult ${passed?'pass':'fail'}"><span class="lbl">Mission ${G.mission+1} · ${esc(M.title)}</span><b>${passed?'Passed':'Failed'}</b> ${starsFor(G.mission,pct,won)} <span class="dim">Needed ${R0(M.pass*100)}% alive at relief.</span></div>`:''}
   <div class="big">${rating}</div>
   <div class="kv">${tile('People alive',`${num(alive)} / ${num(total)}`,`${R0(pct*100)}% of everyone sheltered`,pct<.5?'neg':pct>.85?'pos':'')}${tile('Dead',num(dead),'',dead?'neg':'')}${tile('Sealed',`${days.toFixed(1)} days`,`${S.shift} shifts`)}${tile('Construction',mil(spent),`${money(spent/Math.max(1,alive))} per survivor`)}</div>
   <div class="sect"><span class="lbl">People alive across the region</span>${chartSVG(H.map(h=>h.alive),{unit:'people alive'})}${ro('Hover the chart to read any shift.')}</div>
   <div class="sect"><span class="lbl">Shelter by shelter</span><div style="overflow-x:auto"><table class="res"><thead><tr><th>Shelter</th><th>People over time</th><th>Alive</th><th>Dead</th><th>Lowest air</th><th>Shifts dry</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div></div>
   <div class="endcols">
     <div class="sect"><span class="lbl">Causes of death</span>${causes.length?`<div class="cause">${causes.map(([c,v])=>`<span>${esc(cap1(c).replace('Co2','CO₂'))}</span><div class="meter"><i style="width:${v/cmax*100}%;--c:var(--amber)"></i></div><span class="num">${num(v)}</span>`).join('')}</div>`:'<div class="pos">Nobody died.</div>'}</div>
-    <div class="sect"><span class="lbl">What you did</span><div class="kv">${tile('Overhauls',st_.overhauls||0)}${tile('LiOH opened',st_.lioh||0)}${tile('Tunnel repairs',st_.repairs||0)}${tile('Flows set',st_.flowsSet||0)}${tile('Water moved',`${num(st_.moved.W||0)} L`)}${tile('Power moved',`${num((st_.moved.P||0)*6)} kWh`)}${tile('Taken in at hatches',st_.taken||0)}${tile('Evacuations',st_.evacs||0)}${tile('Events survived',st_.events||0)}${tile('Tunnels cut',st_.cuts||0)}</div></div>
+    <div class="sect"><span class="lbl">What you did</span><div class="kv">${tile('Overhauls',st_.overhauls||0)}${tile('LiOH opened',st_.lioh||0)}${tile('Tunnel repairs',st_.repairs||0)}${tile('Flows set',st_.flowsSet||0)}${tile('Water moved',`${num(st_.moved.W||0)} L`)}${tile('Power moved',`${num((st_.moved.P||0)*6)} kWh`)}${tile('Taken in at hatches',st_.taken||0)}${tile('Evacuations',st_.evacs||0)}${tile('People walked',st_.people||0)}${tile('Events survived',st_.events||0)}${tile('Tunnels cut',st_.cuts||0)}</div></div>
   </div>
   <div class="sect"><span class="lbl">Stores across the network</span><div class="endcols three">
     <div><div class="dim" style="font-size:13px">Water, L</div>${chartSVG(H.map(h=>h.water_t),{w:320,h:120,color:'var(--water)',unit:'L of water'})}${ro(`End: ${num(H[H.length-1].water_t)} L`)}</div>
     <div><div class="dim" style="font-size:13px">Diesel, L</div>${chartSVG(H.map(h=>h.fuel_t),{w:320,h:120,color:'var(--fuel)',unit:'L of diesel'})}${ro(`End: ${num(H[H.length-1].fuel_t)} L`)}</div>
     <div><div class="dim" style="font-size:13px">Food, person-days</div>${chartSVG(H.map(h=>h.food_t),{w:320,h:120,color:'#c9a46a',unit:'person-days of food'})}${ro(`End: ${num(H[H.length-1].food_t)} person-days`)}</div>
   </div></div>
-  <div class="foot"><button class="btn" id="eBoard" type="button">Look at the board</button>${SKIP_BUILD?'<button class="btn primary" id="eNew" type="button">Take the watch again</button>':'<button class="btn" id="eSame" type="button">Rebuild on this map</button><button class="btn primary" id="eNew" type="button">New region</button>'}</div>`,1100);
+  <div class="foot"><button class="btn" id="eBoard" type="button">Look at the board</button><button class="btn" id="eMenu" type="button">Main menu</button>${M?`<button class="btn" id="eRetry" type="button">Retry mission</button>${passed&&G.mission<MISSIONS.length-1?'<button class="btn primary" id="eNext" type="button">Next mission ▸</button>':''}`:'<button class="btn" id="eSame" type="button">Rebuild on this map</button><button class="btn primary" id="eNew" type="button">New region</button>'}</div>`,1100);
   bindCharts($('#modalRoot'));
-  $('#eNew').onclick=()=>{closeModal();if(SKIP_BUILD){newScenario();openTitle();}else newGame();};$('#eBoard').onclick=closeModal;
+  $('#eBoard').onclick=closeModal;$('#eMenu').onclick=()=>{closeModal();openMenu();};
+  if($('#eRetry'))$('#eRetry').onclick=()=>{closeModal();startMission(G.mission);};
+  if($('#eNext'))$('#eNext').onclick=()=>{closeModal();startMission(G.mission+1);};
+  if($('#eNew'))$('#eNew').onclick=()=>{closeModal();startFreeBuild();};
   if($('#eSame'))$('#eSame').onclick=()=>{G.phase='build';S=G.S=null;UI.sel=null;UI.selLink=null;UI.tab='site';recomputeRoads();closeModal();};}
 
 
 /* ---------------- random event deck ---------------- */
 function pickW(items,wf){const w=items.map(wf),tot=w.reduce((a,b)=>a+b,0);if(tot<=0)return null;let x=rnd()*tot;for(let i=0;i<items.length;i++){x-=w[i];if(x<=0)return items[i];}return items[items.length-1];}
-const DECK=[{k:'aftershock',w:3,max:5},{k:'genloss',w:2.5,max:4},{k:'vent',w:2,max:2},{k:'fire',w:2.5,max:5},{k:'leak',w:3,max:6},{k:'flood',w:2,max:3},
-  {k:'fuelbad',w:1.5,max:2},{k:'sick',w:2,max:3},{k:'hatch',w:2.5,max:4},{k:'delay',w:1.2,max:2},{k:'scrubfault',w:2.5,max:5}];
-function drawEvents(){const r=rnd(),n=r<.08?0:r<.5?1:r<.86?2:3;
-  for(let i=0;i<n;i++){const pool=DECK.filter(d=>(S.deck[d.k]||0)<d.max);const d=pickW(pool,x=>x.w);if(!d)return;if(runEvent(d.k)&&S.stats.events++>=0)S.deck[d.k]=(S.deck[d.k]||0)+1;}}
+const DECK=[
+  {k:'leak',w:3,max:6,tier:1},{k:'fire',w:2.5,max:5,tier:1},{k:'scrubfault',w:2.5,max:5,tier:1},{k:'birth',w:1.2,max:2,tier:1},{k:'rats',w:1.4,max:2,tier:1},{k:'volunteer',w:1.2,max:2,tier:1},
+  {k:'aftershock',w:3,max:5,tier:2},{k:'genloss',w:2.5,max:4,tier:2},{k:'hatch',w:2.5,max:4,tier:2},{k:'radio',w:1,max:1,tier:2},{k:'crowding',w:1.6,max:2,tier:2},
+  {k:'flood',w:2,max:3,tier:3},{k:'fuelbad',w:1.5,max:2,tier:3},{k:'collapse',w:1.7,max:2,tier:3},{k:'breach',w:1.5,max:2,tier:3},{k:'coleak',w:1.5,max:2,tier:3},
+  {k:'sick',w:2,max:3,tier:4},{k:'vent',w:2,max:2,tier:4},{k:'fever',w:1.5,max:2,tier:4},{k:'badfood',w:1.3,max:2,tier:4},{k:'stairs',w:1.3,max:2,tier:4},
+  {k:'plume',w:1.5,max:2,tier:5},{k:'delay',w:1.2,max:2,tier:5}];
+function drawEvents(){const e=S.evRate||[.08,.5,.86],r=rnd(),n=r<e[0]?0:r<e[1]?1:r<e[2]?2:3;
+  for(let i=0;i<n;i++){const pool=DECK.filter(d=>(d.tier||1)<=(S.tier||5)&&(S.deck[d.k]||0)<d.max);const d=pickW(pool,x=>x.w);if(!d)return;if(runEvent(d.k)&&S.stats.events++>=0)S.deck[d.k]=(S.deck[d.k]||0)+1;}}
 function runEvent(k){const live=liveShelters();if(!live.length)return false;const any=()=>live[Math.floor(rnd()*live.length)];
   switch(k){
     case 'aftershock':{const ch=[];for(const l of S.links){if(!l.ok)continue;const r=rnd(),f=1-l.rel;if(r<f*.35){l.ok=false;l.hp=0;S.stats.cuts++;ch.push(`${linkName(l)} severed`);}else if(r<f*.9){l.hp=Math.max(20,l.hp-R0(25+rnd()*30));ch.push(`${linkName(l)} down to ${l.hp}%`);}}
@@ -645,13 +671,40 @@ function runEvent(k){const live=liveShelters();if(!live.length)return false;cons
       S.flags.hatchDone=[...done,c];sendKey('hatch',{s:c,town:t.name,n:40+Math.floor(rnd()*10)*10});return true;}
     case 'delay':{const d=1+(rnd()<.35?1:0);S.relief+=d;ev(`Relief convoy delayed ${d*6} hours.`);sendKey('delay',{d});return true;}
     case 'scrubfault':{const c=pickW(live.filter(i=>st(i).scrubCap),()=>1);if(!c)return false;st(c).scrub=Math.max(0,st(c).scrub-15);ev(`${c} scrubber fan bearing failing. -15%.`);return true;}
+    case 'birth':{const c=any(),s=st(c);s.pop+=1;s.morale=clamp(s.morale+10,0,100);ev(`A baby was born at ${c}.`);sendKey('birth',{s:c});return true;}
+    case 'rats':{const c=pickW(live.filter(i=>st(i).food>300),()=>1);if(!c)return false;const s=st(c),lost=R0(s.food*.12);s.food-=lost;ev(`Rats in the ${c} storeroom: ${num(lost)} rations spoiled.`);sendKey('rats',{s:c,lost});return true;}
+    case 'volunteer':{const c=any();st(c).spares++;ev(`${c}: a machinist from town rebuilt a spare kit from salvage.`);sendKey('volunteer',{s:c});return true;}
+    case 'radio':{for(const i of live)st(i).morale=clamp(st(i).morale+6,0,100);ev('A radio broadcast from the capital: the government is functioning. Morale up everywhere.');sendKey('radio');return true;}
+    case 'crowding':{const c=pickW(live,i=>{const [t,d]=nearestTown(st(i).x,st(i).y);return 1/(1+d/20);});const s=st(c),n=R0(s.cap*(.08+rnd()*.08));s.pop+=n;ev(`${n} more people from town reached ${c} through a service adit.`);sendKey('crowding',{s:c,n});return true;}
+    case 'collapse':{const cand=S.links.filter(l=>!l.collapsed&&l.ok);if(!cand.length)return false;const l=pickW(cand,x=>1.05-x.rel);l.collapsed=true;S.stats&&S.stats.cuts++;const kept=[],lost=[];
+      for(const k of ['W','A','P'])if(l.cap[k]>0){if(rnd()<.5){l.cap[k]=0;lost.push(RNAME[k].toLowerCase());}else kept.push(RNAME[k].toLowerCase());}
+      if(!kept.length){l.ok=false;l.hp=0;}
+      ev(`The ${linkName(l)} tunnel collapsed. No passage for people.${kept.length?` Still carrying ${kept.join(' and ')}.`:' Every line in it is gone.'}`);sendKey('collapse',{l:linkName(l),kept,lost});return true;}
+    case 'breach':{const c=pickW(live,i=>1.1-st(i).prot);if(!c)return false;const s=st(c);s.hull=Math.max(0,s.hull-12);s.air=clamp(s.air-8,0,100);s.morale-=8;ev(`${c}: the outer blast door seal failed. Fallout in the entry, hull -12.`);sendKey('breach',{s:c});return true;}
+    case 'coleak':{const c=pickW(live.filter(i=>st(i).gcap),()=>1);if(!c)return false;const s=st(c);s.air=clamp(s.air-10,0,100);s.gen=Math.max(0,s.gen-10);ev(`${c}: generator exhaust leaking into the gallery. Air -10.`);sendKey('coleak',{s:c});return true;}
+    case 'fever':{const c=pickW(live.filter(i=>!st(i).busy),()=>1);if(!c)return false;const s=st(c);s.ill=2;s.busy='STAFF DOWN WITH FEVER';ev(`${c}: half the staff are down with fever. No repairs there for a while.`);sendKey('fever',{s:c});return true;}
+    case 'badfood':{const c=pickW(live.filter(i=>st(i).food>300),()=>1);if(!c)return false;const s=st(c),lost=R0(s.food*.2);s.food-=lost;s.morale-=5;ev(`${c}: a batch of rations went bad. ${num(lost)} thrown out.`);sendKey('badfood',{s:c,lost});return true;}
+    case 'stairs':{const c=pickW(live,i=>st(i).pop/Math.max(1,st(i).cap));const s=st(c);s.morale-=10;casualties(s,s.pop*.005,'crush on the stairs');sendKey('stairs',{s:c});return true;}
+    case 'plume':{const hit=live.filter(i=>st(i).hull<80);if(!hit.length)return false;for(const i of hit)st(i).air=clamp(st(i).air-8,0,100);ev(`Heavy fallout plume over the region. Air -8 at ${hit.join(', ')}.`);sendKey('plume',{hit});return true;}
   }return false;}
 function checkEvac(){const N=compute();
   for(const id of liveShelters()){if(S.flags['ev'+id])continue;const s=st(id),n=N[id],sh=n.wnet<0?s.water/-n.wnet:99;
     if(!(s.air<55||sh<2||(s.food<=0&&s.hungry>1)))continue;
-    const to=neighbors(id).find(x=>{const l=findLink(id,x);return l.ok&&x!=='CC'&&!st(x).lost&&!st(x).evac&&st(x).pop<st(x).cap*1.2;});
+    const to=neighbors(id).find(x=>{const l=findLink(id,x);return passable(l)&&x!=='CC'&&!st(x).lost&&!st(x).evac&&st(x).pop<st(x).cap*1.2;});
     if(to){S.flags['ev'+id]=1;sendKey('evac',{s:id,to});return;}}}
 Object.assign(MAILS,{
+  birth:p=>({from:p.s,subj:'A GIRL, 3.1 KG',body:`Control,\n\nA baby girl was born in the bunk bays at ${shortT(S.shift)}. Mother and child are fine. The staff gave her the last of the oranges.\n\nPeople are smiling for the first time since the doors shut.\n${sig(p.s)}`}),
+  rats:p=>({from:p.s,subj:'RATS',body:`Control,\n\nRats got into the storeroom through a cable duct. ${num(p.lost)} rations are spoiled. We have sealed the duct with grout and a mattress.\n${sig(p.s)}`}),
+  volunteer:p=>({from:p.s,subj:'A MACHINIST',body:`Control,\n\nOne of the people from town ran a machine shop. He took apart a dead fan motor and a bunk frame and made us a working spares kit. We hold ${kits(st(p.s).spares)} now.\n${sig(p.s)}`}),
+  radio:()=>({from:'SYS',subj:'BROADCAST RECEIVED',body:`Emergency broadcast received on the national band:\n\n"THE GOVERNMENT IS FUNCTIONING. STAY IN YOUR SHELTERS. RELIEF IS BEING ORGANIZED REGION BY REGION."\n\nRelayed to all shelters.`}),
+  crowding:p=>({from:p.s,subj:'MORE PEOPLE',body:`Control,\n\n${p.n} more people from town found the service adit and came in before we could seal it. We are ${st(p.s).pop} on ${st(p.s).cap} beds.\n\nIf a neighbour has room, we can walk people through the tunnel. Use the transfer panel and choose People.\n${sig(p.s)}`}),
+  collapse:p=>({from:'ENG',subj:`TUNNEL ${p.l} COLLAPSED`,body:`Controller,\n\nThe ${p.l} tunnel has collapsed along a stretch of about thirty metres. The crawlway is gone; nobody will walk through it again.\n\n${p.kept.length?`The ${p.kept.join(' and ')} line${p.kept.length>1?'s are':' is'} still live inside the rubble.`:'Every line in it is cut.'}${p.lost.length?` Lost: ${p.lost.join(', ')}.`:''} This cannot be repaired from inside.\n- CHIEF ENG. K. DOSS`}),
+  breach:p=>({from:p.s,subj:'OUTER DOOR SEAL',body:`Control,\n\nThe seal on the outer blast door failed under the last shock. Fallout dust in the entry and the intake room. We have closed the inner door and taped the frame. Hull integrity ${R0(st(p.s).hull)}%.\n${sig(p.s)}`}),
+  coleak:p=>({from:p.s,subj:'EXHAUST LEAK',body:`Control,\n\nThe generator exhaust stack cracked where it passes the gallery. People were getting headaches before anyone understood why. Air ${R0(st(p.s).air)}%. We have wrapped it, but the genset needs an overhaul.\n${sig(p.s)}`}),
+  fever:p=>({from:p.s,subj:'STAFF SICK',body:`Control,\n\nHalf my staff are down with fever. The rest are running the bunk bays and the kitchen. No overhauls or tunnel work from us for the next two shifts.\n${sig(p.s)}`}),
+  badfood:p=>({from:p.s,subj:'RATIONS SPOILED',body:`Control,\n\nA pallet of rations was stored against the warm generator wall. ${num(p.lost)} person-days of food are spoiled and thrown out.\n${sig(p.s)}`}),
+  stairs:p=>({from:p.s,subj:'CRUSH ON THE STAIRS',body:`Control,\n\nA rumour went round that the elevator was running to the surface. People rushed the stairwell. We lost people in the crush before the staff got between them and the door.\n\nWe are too crowded, Control.\n${sig(p.s)}`}),
+  plume:p=>({from:'HQ',subj:'FALLOUT PLUME',body:`ALL SHELTERS,\n\nA heavy fallout plume is passing over the region. Shelters with damaged shells will take some of it in: ${p.hit.join(', ')}.\n- DIR. T. HOLLIS`}),
   aftershock:p=>({from:'ENG',subj:'AFTERSHOCK',body:`Controller,\n\nAftershock through the region.${p.ch.length?`\n\n${p.ch.map(x=>'  '+x).join('\n')}\n\nShallow tunnels in sand take it worst. A crew from either end can repair a line with a spares kit.`:'\n\nEvery tunnel held this time.'}\n- CHIEF ENG. K. DOSS`}),
   leak:p=>({from:p.s,subj:'TANK SEAM SPLIT',body:`Control,\n\nA seam on our main water tank split. We lost ${num(p.lost)} L before we got a clamp on it, and it still weeps about ${st(p.s).leak} L a shift. A water plant overhaul would seal it properly.\n${sig(p.s)}`}),
   flood:p=>({from:p.s,subj:'WATER IN THE SUMP',body:`Control,\n\nGroundwater is coming through the lining where the shaft passes through sand. The sump pumps are holding, but it got into the filtration room and the lower tank. ${num(p.lost)} L contaminated and dumped; the water plant is at ${R0(st(p.s).plant)}%.\n${sig(p.s)}`}),
